@@ -1456,6 +1456,10 @@ BOOL CQPasteWnd::FillList(CString csSQLSearch)
 	}
 	else
 	{
+		bool bQuickPastePrefixSearch = (csSQLSearch.Left(2) == _T("!!"));
+		bool bFullTextPrefixSearch = (csSQLSearch.Left(3) == _T("/f ") ||
+			csSQLSearch.Left(3) == _T("\\f "));
+
 		CFormatSQL descriptionFormat;
 		CString descriptionSql;
 		CFormatSQL quickPasteFormat;
@@ -1464,8 +1468,9 @@ BOOL CQPasteWnd::FillList(CString csSQLSearch)
 		CString fullTextSql;
 
 		//If other are off then always search the description
-		if (CGetSetOptions::GetSearchDescription() ||
-			(CGetSetOptions::GetSearchFullText() == FALSE && CGetSetOptions::GetSearchQuickPaste() == FALSE))
+		if (bQuickPastePrefixSearch == false &&
+			(CGetSetOptions::GetSearchDescription() ||
+			(CGetSetOptions::GetSearchFullText() == FALSE && CGetSetOptions::GetSearchQuickPaste() == FALSE)))
 		{
 			descriptionFormat.SetVariable("Main.mText");
 
@@ -1473,30 +1478,42 @@ BOOL CQPasteWnd::FillList(CString csSQLSearch)
 			descriptionSql = descriptionFormat.GetSQLString();
 		}
 
-		if (csSQLSearch.Left(3) == _T("/q ") ||
-			csSQLSearch.Left(3) == _T("\\q ") ||
+		if (bQuickPastePrefixSearch ||
 			CGetSetOptions::GetSearchQuickPaste())
 		{
-			quickPasteFormat.SetVariable("Main.QuickPasteText");
+			CString quickPasteSearch(csSQLSearch);
 
-			if (csSQLSearch.Left(3) == _T("/q ") ||
-				csSQLSearch.Left(3) == _T("\\q "))
+			if (bQuickPastePrefixSearch)
 			{
-				csSQLSearch = csSQLSearch.Mid(3);
+				quickPasteSearch = quickPasteSearch.Mid(2);
+				quickPasteSearch.TrimLeft();
 			}
 
-			quickPasteFormat.Parse(csSQLSearch);
-			quickPasteSql = quickPasteFormat.GetSQLString();
+			if (quickPasteSearch.IsEmpty())
+			{
+				quickPasteSql = _T("(Main.QuickPasteText IS NOT NULL AND Main.QuickPasteText <> '')");
+			}
+			else
+			{
+				quickPasteFormat.SetVariable("Main.QuickPasteText");
+				quickPasteFormat.Parse(quickPasteSearch);
+				quickPasteSql = quickPasteFormat.GetSQLString();
+				quickPasteSql.Insert(1, _T("Main.QuickPasteText IS NOT NULL AND Main.QuickPasteText <> '' AND "));
+			}
+
+			if (bQuickPastePrefixSearch)
+			{
+				csSQLSearch = quickPasteSearch;
+			}
 		}
 
-		if (csSQLSearch.Left(3) == _T("/f ") ||
-			csSQLSearch.Left(3) == _T("\\f ") ||
-			CGetSetOptions::GetSearchFullText())
+		if (bQuickPastePrefixSearch == false &&
+			(bFullTextPrefixSearch ||
+			CGetSetOptions::GetSearchFullText()))
 		{
 			dataJoin = _T("INNER JOIN Data on Data.lParentID = Main.lID");
 
-			if (csSQLSearch.Left(3) == _T("/f ") ||
-				csSQLSearch.Left(3) == _T("\\f "))
+			if (bFullTextPrefixSearch)
 			{
 				csSQLSearch = csSQLSearch.Mid(3);
 			}
