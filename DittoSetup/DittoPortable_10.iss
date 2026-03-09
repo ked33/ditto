@@ -66,7 +66,7 @@ Name: Romanian; MessagesFile: Romanian.isl
 Name: Swedish; MessagesFile: Swedish.isl
 
 [Files]
-Source: ..\Release64\Ditto.exe; DestDir: {app}; Flags: ignoreversion
+Source: ..\Release64\Ditto.exe; DestDir: {app}; DestName: Ditto.exe; Flags: ignoreversion
 Source: ..\Release64\ICU_Loader.dll; DestDir: {app}; Flags: ignoreversion
 Source: ..\Release64\Addins\*.dll; DestDir: {app}\Addins; Flags: ignoreversion
 Source: C:\Windows\sysnative\vcruntime140.dll; DestDir: {app}; Flags: ignoreversion

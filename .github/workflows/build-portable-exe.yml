@@ -21,6 +21,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v2
@@ -32,13 +34,25 @@ jobs:
       - name: Build 64bit
         run: msbuild ${{ env.SOLUTION_FILE_PATH }} /p:Configuration=Release /p:Platform=x64
 
-      - name: Read Ditto version
-        shell: powershell
+      - name: Resolve latest release version
+        shell: pwsh
         run: |
-          $version = (Get-Item 'Release64\Ditto.exe').VersionInfo.FileVersion.Trim()
-          $artifactBaseName = "DittoPortable_{0}" -f ($version -replace '\.', '_')
+          $version = git tag --sort=-version:refname |
+            Where-Object { $_ -match '^\d+\.\d+\.\d+\.\d+$' } |
+            Select-Object -First 1
+
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            throw "No numeric release tag found."
+          }
+
+          $artifactBaseName = "DittoPortable_64bit_{0}" -f ($version -replace '\.', '_')
           "DITTO_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
           "ARTIFACT_BASENAME=$artifactBaseName" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Stamp Ditto version
+        shell: pwsh
+        run: |
+          .\DittoSetup\rcedit-x64.exe .\Release64\Ditto.exe --set-file-version $env:DITTO_VERSION --set-product-version $env:DITTO_VERSION
 
       - name: Build portable exe
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
