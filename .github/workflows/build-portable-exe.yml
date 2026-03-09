@@ -43,9 +43,7 @@ jobs:
             throw "No numeric release tag found."
           }
 
-          $artifactBaseName = "DittoPortable_64bit_{0}" -f ($version -replace '\.', '_')
           "DITTO_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
-          "ARTIFACT_BASENAME=$artifactBaseName" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Stamp Ditto version
         shell: pwsh
@@ -56,11 +54,10 @@ jobs:
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         with:
           path: DittoSetup\DittoPortable_10.iss
-          options: /F"${{ env.ARTIFACT_BASENAME }}"
 
       - name: Upload DittoPortable exe
         uses: actions/upload-artifact@v4
         with:
           name: DittoPortable-exe-x64-${{ env.DITTO_VERSION }}
           if-no-files-found: error
-          path: DittoSetup\output\${{ env.ARTIFACT_BASENAME }}.exe
+          path: DittoSetup\output\Ditto.exe
