@@ -1,4 +1,4 @@
-name: Build DittoPortable EXE
+name: Build DittoPortable
 
 on:
   workflow_dispatch:
@@ -14,7 +14,7 @@ env:
   SOLUTION_FILE_PATH: CP_Main_10.sln
 
 jobs:
-  build-portable-exe:
+  build-portable:
     runs-on: windows-latest
 
     steps:
@@ -43,21 +43,33 @@ jobs:
             throw "No numeric release tag found."
           }
 
+          $portableBaseName = "DittoPortable_64bit_{0}" -f ($version -replace '\.', '_')
           "DITTO_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "PORTABLE_BASENAME=$portableBaseName" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: Stamp Ditto version
         shell: pwsh
         run: |
           .\DittoSetup\rcedit-x64.exe .\Release64\Ditto.exe --set-file-version $env:DITTO_VERSION --set-product-version $env:DITTO_VERSION
 
-      - name: Build portable exe
-        uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
-        with:
-          path: DittoSetup\DittoPortable_10.iss
+      - name: Build portable zip
+        shell: cmd
+        run: DittoSetup\BuildPortableZIP.bat "%PORTABLE_BASENAME%" bit64
 
-      - name: Upload DittoPortable exe
+      - name: Extract portable package
+        shell: pwsh
+        run: |
+          $artifactDir = Join-Path $env:GITHUB_WORKSPACE 'portable-artifact'
+          Remove-Item $artifactDir -Recurse -Force -ErrorAction SilentlyContinue
+          Expand-Archive -Path ".\DittoSetup\output\$env:PORTABLE_BASENAME.zip" -DestinationPath $artifactDir -Force
+
+          if (-not (Test-Path (Join-Path $artifactDir 'Ditto\Ditto.exe'))) {
+            throw "Portable package does not contain Ditto\\Ditto.exe"
+          }
+
+      - name: Upload DittoPortable artifact
         uses: actions/upload-artifact@v4
         with:
-          name: DittoPortable-exe-x64-${{ env.DITTO_VERSION }}
+          name: DittoPortable-x64-${{ env.DITTO_VERSION }}
           if-no-files-found: error
-          path: DittoSetup\output\Ditto.exe
+          path: portable-artifact\Ditto\*
