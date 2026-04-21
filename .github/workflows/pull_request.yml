@@ -18,15 +18,28 @@ jobs:
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v2
 
-      - name: Setup NuGet
-        uses: NuGet/setup-nuget@v2
-
-      - name: Install zlib packages
+      - name: Download zlib packages
         working-directory: ${{env.GITHUB_WORKSPACE}}
         shell: pwsh
         run: |
-          nuget install zlib-msvc-x64 -Version 1.2.11.8900 -OutputDirectory packages -Source https://api.nuget.org/v3/index.json -NonInteractive -DirectDownload -NoCache -Verbosity detailed
-          nuget install zlib-msvc-x86 -Version 1.2.11.8900 -OutputDirectory packages -Source https://api.nuget.org/v3/index.json -NonInteractive -DirectDownload -NoCache -Verbosity detailed
+          $version = '1.2.11.8900'
+          $packagesDir = Join-Path $PWD 'packages'
+          $packageIds = @('zlib-msvc-x64', 'zlib-msvc-x86')
+
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          New-Item -ItemType Directory -Path $packagesDir -Force | Out-Null
+
+          foreach ($packageId in $packageIds) {
+            $packageUrl = "https://www.nuget.org/api/v2/package/$packageId/$version"
+            $packageFile = Join-Path $env:RUNNER_TEMP "$packageId.$version.nupkg"
+            $extractDir = Join-Path $packagesDir "$packageId.$version"
+
+            Remove-Item $packageFile -Force -ErrorAction SilentlyContinue
+            Remove-Item $extractDir -Recurse -Force -ErrorAction SilentlyContinue
+
+            Invoke-WebRequest -Uri $packageUrl -OutFile $packageFile
+            [System.IO.Compression.ZipFile]::ExtractToDirectory($packageFile, $extractDir)
+          }
 
       - name: Verify restored zlib package
         shell: pwsh
