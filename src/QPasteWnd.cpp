@@ -941,12 +941,12 @@ BOOL CQPasteWnd::ShowQPasteWindow(BOOL bFillList)
 	{
 		FillList();
 	}
-
-	m_extraDataThread.FireLoadAccelerators();
 	else
 	{
 		MoveControls();
 	}
+
+	m_extraDataThread.FireLoadAccelerators();
 
 	// always on top... for persistent showing (CGetSetOptions::m_bShowPersistent)
 	// SHOWWINDOW was also integrated into this function rather than calling it separately
