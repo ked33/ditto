@@ -175,12 +175,29 @@
   <PropertyGroup Label="Vcpkg">
     <VcpkgEnableManifest>false</VcpkgEnableManifest>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Platform)'=='Win32'">
+    <ZlibPackageNativeDir>$(MSBuildProjectDirectory)\packages\zlib-msvc-x86.1.2.11.8900\build\native</ZlibPackageNativeDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Platform)'=='x64'">
+    <ZlibPackageNativeDir>$(MSBuildProjectDirectory)\packages\zlib-msvc-x64.1.2.11.8900\build\native</ZlibPackageNativeDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Platform)'=='Win32' Or '$(Platform)'=='x64'">
+    <ZlibIncludeDir>$(ZlibPackageNativeDir)\include</ZlibIncludeDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="('$(Platform)'=='Win32' Or '$(Platform)'=='x64') And '$(Configuration)'=='Debug'">
+    <ZlibLibraryDir>$(ZlibPackageNativeDir)\lib_debug</ZlibLibraryDir>
+    <ZlibLibraryName>zlibstaticd.lib</ZlibLibraryName>
+  </PropertyGroup>
+  <PropertyGroup Condition="('$(Platform)'=='Win32' Or '$(Platform)'=='x64') And '$(Configuration)'=='Release'">
+    <ZlibLibraryDir>$(ZlibPackageNativeDir)\lib_release</ZlibLibraryDir>
+    <ZlibLibraryName>zlibstatic.lib</ZlibLibraryName>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_MBCS;AFTER_98;UNICODE;HAVE_CONFIG_H;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ZlibIncludeDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;NDEBUG;_WINDOWS;_MBCS;AFTER_98;UNICODE;HAVE_CONFIG_H;HAS_zlib;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <StringPooling>true</StringPooling>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -198,10 +215,10 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>ws2_32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;Winmm.lib;Version.lib;Shlwapi.lib;$(Configuration)\EncryptDecrypt.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ws2_32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;Winmm.lib;Version.lib;Shlwapi.lib;$(Configuration)\EncryptDecrypt.lib;crypt32.lib;$(ZlibLibraryName);%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>release\Ditto.exe</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(ZlibLibraryDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ProgramDatabaseFile>.\Release\Ditto.pdb</ProgramDatabaseFile>
       <GenerateMapFile>true</GenerateMapFile>
@@ -224,7 +241,7 @@
     <ResourceCompile>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <Culture>0x0409</Culture>
-      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ZlibIncludeDir);$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <PostBuildEvent>
       <Command>
@@ -239,8 +256,8 @@
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN64;NDEBUG;_WINDOWS;_MBCS;AFTER_98;UNICODE;HAVE_CONFIG_H;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ZlibIncludeDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN64;NDEBUG;_WINDOWS;_MBCS;AFTER_98;UNICODE;HAVE_CONFIG_H;HAS_zlib;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <StringPooling>true</StringPooling>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -258,10 +275,10 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>ws2_32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;Winmm.lib;Version.lib;$(Configuration)64\EncryptDecrypt.lib;Shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ws2_32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;Winmm.lib;Version.lib;$(Configuration)64\EncryptDecrypt.lib;Shlwapi.lib;$(ZlibLibraryName);%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>release64\Ditto.exe</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(ZlibLibraryDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <ProgramDatabaseFile>.\Release64\Ditto.pdb</ProgramDatabaseFile>
       <GenerateMapFile>true</GenerateMapFile>
@@ -282,7 +299,7 @@
     <ResourceCompile>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <Culture>0x0409</Culture>
-      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ZlibIncludeDir);$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <PostBuildEvent>
       <Command>
@@ -354,8 +371,8 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_MBCS;AFTER_98;UNICODE;HAVE_CONFIG_H;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ZlibIncludeDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_DEBUG;_WINDOWS;_MBCS;AFTER_98;UNICODE;HAVE_CONFIG_H;HAS_zlib;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <PrecompiledHeader>Use</PrecompiledHeader>
@@ -372,7 +389,7 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>ws2_32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;Winmm.lib;Pdh.lib;Version.lib;$(Configuration)\EncryptDecrypt.lib;Shlwapi.lib;crypt32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ws2_32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;Winmm.lib;Pdh.lib;Version.lib;$(Configuration)\EncryptDecrypt.lib;Shlwapi.lib;crypt32.lib;$(ZlibLibraryName);%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>debug\Ditto.exe</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -384,7 +401,7 @@
       <MapFileName>.\Debug/Ditto.map</MapFileName>
       <MapExports>true</MapExports>
       <RegisterOutput>false</RegisterOutput>
-      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(ZlibLibraryDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
     </Link>
     <Midl>
@@ -399,7 +416,7 @@
     <ResourceCompile>
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <Culture>0x0409</Culture>
-      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ZlibIncludeDir);$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <PostBuildEvent>
       <Command>
@@ -413,8 +430,8 @@
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>_DEBUG;_WINDOWS;_MBCS;UNICODE;HAVE_CONFIG_H;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(ZlibIncludeDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>_DEBUG;_WINDOWS;_MBCS;UNICODE;HAVE_CONFIG_H;HAS_zlib;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
       <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
       <PrecompiledHeader>Use</PrecompiledHeader>
@@ -431,7 +448,7 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>ws2_32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;Winmm.lib;Pdh.lib;Version.lib;$(Configuration)64\\EncryptDecrypt.lib;Shlwapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ws2_32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;Winmm.lib;Pdh.lib;Version.lib;$(Configuration)64\\EncryptDecrypt.lib;Shlwapi.lib;$(ZlibLibraryName);%(AdditionalDependencies)</AdditionalDependencies>
       <OutputFile>debug64\Ditto.exe</OutputFile>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -443,7 +460,7 @@
       <MapFileName>.\Debug64/Ditto.map</MapFileName>
       <MapExports>true</MapExports>
       <TargetMachine>MachineX64</TargetMachine>
-      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(ZlibLibraryDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <RegisterOutput>false</RegisterOutput>
     </Link>
     <Midl>
@@ -457,7 +474,7 @@
     <ResourceCompile>
       <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <Culture>0x0409</Culture>
-      <AdditionalIncludeDirectories>$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ZlibIncludeDir);$(IntDir);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <PostBuildEvent>
       <Command>
@@ -1144,19 +1161,21 @@
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
-    <Import Project="packages\zlib-msvc-x86.1.2.11.8900\build\native\zlib-msvc-x86.targets" Condition="Exists('packages\zlib-msvc-x86.1.2.11.8900\build\native\zlib-msvc-x86.targets')" />
-    <Import Project="packages\zlib-msvc-x64.1.2.11.8900\build\native\zlib-msvc-x64.targets" Condition="Exists('packages\zlib-msvc-x64.1.2.11.8900\build\native\zlib-msvc-x64.targets')" />
   </ImportGroup>
   <ProjectExtensions>
     <VisualStudio>
       <UserProperties RESOURCE_FILE="CP_Main.rc" />
     </VisualStudio>
   </ProjectExtensions>
-  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
+  <Target Name="EnsureZlibPackageFiles" BeforeTargets="PrepareForBuild">
     <PropertyGroup>
       <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
     </PropertyGroup>
-    <Error Condition="!Exists('packages\zlib-msvc-x86.1.2.11.8900\build\native\zlib-msvc-x86.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\zlib-msvc-x86.1.2.11.8900\build\native\zlib-msvc-x86.targets'))" />
-    <Error Condition="!Exists('packages\zlib-msvc-x64.1.2.11.8900\build\native\zlib-msvc-x64.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\zlib-msvc-x64.1.2.11.8900\build\native\zlib-msvc-x64.targets'))" />
+    <Error Condition="'$(Platform)'=='Win32' And !Exists('packages\zlib-msvc-x86.1.2.11.8900\build\native\include\zlib.h')" Text="$([System.String]::Format('$(ErrorText)', 'packages\zlib-msvc-x86.1.2.11.8900\build\native\include\zlib.h'))" />
+    <Error Condition="'$(Platform)'=='Win32' And '$(Configuration)'=='Debug' And !Exists('packages\zlib-msvc-x86.1.2.11.8900\build\native\lib_debug\zlibstaticd.lib')" Text="$([System.String]::Format('$(ErrorText)', 'packages\zlib-msvc-x86.1.2.11.8900\build\native\lib_debug\zlibstaticd.lib'))" />
+    <Error Condition="'$(Platform)'=='Win32' And '$(Configuration)'=='Release' And !Exists('packages\zlib-msvc-x86.1.2.11.8900\build\native\lib_release\zlibstatic.lib')" Text="$([System.String]::Format('$(ErrorText)', 'packages\zlib-msvc-x86.1.2.11.8900\build\native\lib_release\zlibstatic.lib'))" />
+    <Error Condition="'$(Platform)'=='x64' And !Exists('packages\zlib-msvc-x64.1.2.11.8900\build\native\include\zlib.h')" Text="$([System.String]::Format('$(ErrorText)', 'packages\zlib-msvc-x64.1.2.11.8900\build\native\include\zlib.h'))" />
+    <Error Condition="'$(Platform)'=='x64' And '$(Configuration)'=='Debug' And !Exists('packages\zlib-msvc-x64.1.2.11.8900\build\native\lib_debug\zlibstaticd.lib')" Text="$([System.String]::Format('$(ErrorText)', 'packages\zlib-msvc-x64.1.2.11.8900\build\native\lib_debug\zlibstaticd.lib'))" />
+    <Error Condition="'$(Platform)'=='x64' And '$(Configuration)'=='Release' And !Exists('packages\zlib-msvc-x64.1.2.11.8900\build\native\lib_release\zlibstatic.lib')" Text="$([System.String]::Format('$(ErrorText)', 'packages\zlib-msvc-x64.1.2.11.8900\build\native\lib_release\zlibstatic.lib'))" />
   </Target>
 </Project>
