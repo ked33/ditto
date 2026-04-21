@@ -14,6 +14,73 @@ static char THIS_FILE[]=__FILE__;
 
 #define ID_QPASTE_WND			0x1001
 
+namespace
+{
+	BOOL ResolveFillListRequest(CQPasteWnd *pasteWnd, BOOL requestedFill)
+	{
+		BOOL fillList = requestedFill;
+
+		if (fillList == FALSE)
+		{
+			if (pasteWnd->m_listItems.size() == 0)
+			{
+				fillList = TRUE;
+			}
+			else if (theApp.m_databaseOnNetworkShare)
+			{
+				__int64 lastWrite = GetLastWriteTime(CGetSetOptions::GetDBPath());
+				if (lastWrite > pasteWnd->m_lastDbWrite)
+				{
+					pasteWnd->m_lastDbWrite = lastWrite;
+					fillList = TRUE;
+				}
+			}
+		}
+
+		return fillList;
+	}
+
+	void BeginDeferredReveal(CQPasteWnd *pasteWnd)
+	{
+		if (pasteWnd == NULL || ::IsWindow(pasteWnd->GetSafeHwnd()) == FALSE)
+		{
+			return;
+		}
+
+		pasteWnd->m_Alpha.SetOpacity(0);
+		pasteWnd->m_Alpha.SetTransparent(TRUE);
+	}
+
+	void EndDeferredReveal(CQPasteWnd *pasteWnd)
+	{
+		if (pasteWnd == NULL || ::IsWindow(pasteWnd->GetSafeHwnd()) == FALSE)
+		{
+			return;
+		}
+
+		pasteWnd->RedrawWindow(NULL, NULL, RDW_FRAME | RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN);
+
+		if (::IsWindow(pasteWnd->m_search.GetSafeHwnd()))
+		{
+			pasteWnd->m_search.RedrawWindow(NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN);
+		}
+
+		if (::IsWindow(pasteWnd->m_lstHeader.GetSafeHwnd()))
+		{
+			pasteWnd->m_lstHeader.RedrawWindow(NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW | RDW_ALLCHILDREN);
+		}
+
+		if (CGetSetOptions::GetEnableTransparency())
+		{
+			pasteWnd->SetCurrentTransparency();
+		}
+		else
+		{
+			pasteWnd->m_Alpha.SetOpacity(OPACITY_MAX);
+		}
+	}
+}
+
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
 //////////////////////////////////////////////////////////////////////
@@ -100,9 +167,17 @@ void CQuickPaste::ShowQPasteWnd(CWnd *pParent, bool bAtPrevPos, bool bFromKeyboa
 
 	if(CGetSetOptions::m_bShowPersistent && m_pwndPaste != NULL)
 	{
+		if (theApp.m_bShowingQuickPaste == false &&
+			::IsWindow(m_pwndPaste->GetSafeHwnd()))
+		{
+			m_pwndPaste->ShowQPasteWindow(ResolveFillListRequest(m_pwndPaste, bReFillList));
+		}
+
+		BeginDeferredReveal(m_pwndPaste);
 		m_pwndPaste->ShowWindow(SW_SHOW);
 		m_pwndPaste->MinMaxWindow(FORCE_MAX);
 		m_pwndPaste->SetForegroundWindow();
+		EndDeferredReveal(m_pwndPaste);
 		return;
 	}
 	
@@ -237,9 +312,15 @@ void CQuickPaste::ShowQPasteWnd(CWnd *pParent, bool bAtPrevPos, bool bFromKeyboa
 		adjustRect = true;
 	}	
 
+	if (theApp.m_bShowingQuickPaste == false)
+	{
+		m_pwndPaste->ShowQPasteWindow(ResolveFillListRequest(m_pwndPaste, bReFillList));
+	}
+
 	//If minimized
 	if (m_pwndPaste->IsIconic())
 	{
+		BeginDeferredReveal(m_pwndPaste);
 		m_pwndPaste->ShowWindow(SW_RESTORE);
 
 		if ((nPosition == POS_AT_CARET) ||
@@ -283,21 +364,20 @@ void CQuickPaste::ShowQPasteWnd(CWnd *pParent, bool bAtPrevPos, bool bFromKeyboa
 
 
 		// Show the window
+		BeginDeferredReveal(m_pwndPaste);
 		m_pwndPaste->ShowWindow(SW_SHOW);
 	}	
 
-	m_pwndPaste->SetKeyModiferState(bFromKeyboard);	
+	m_pwndPaste->SetKeyModiferState(bFromKeyboard);
 
-	if(bReFillList)
-	{
-		m_pwndPaste->ShowQPasteWindow(bReFillList);
-	}
 	m_pwndPaste->SetForegroundWindow();
 
 	if (::IsWindow(m_pwndPaste->m_search.GetSafeHwnd()))
 	{
 		m_pwndPaste->m_search.SetFocus();
 	}
+
+	EndDeferredReveal(m_pwndPaste);
 
 	Log(StrF(_T("END of ShowQPasteWnd, AtPrevPos: %d, FromKeyboard: %d, RefillList: %d, Position, %d %d %d %d"), bAtPrevPos, bFromKeyboard, bReFillList, crRect.left, crRect.top, crRect.right, crRect.bottom));
 

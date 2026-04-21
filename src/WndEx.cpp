@@ -80,7 +80,7 @@ BOOL CWndEx::Create(const CRect& crStart, CWnd* pParentWnd)
 	wc.hInstance = AfxGetInstanceHandle();
 	wc.hIcon = NULL;
 	wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-	wc.hbrBackground = (HBRUSH) GetStockObject(WHITE_BRUSH);
+	wc.hbrBackground = (HBRUSH)GetStockObject(NULL_BRUSH);
 	wc.lpszMenuName =  NULL;
 	wc.lpszClassName = _T("QPasteClass");
 	
@@ -88,7 +88,7 @@ BOOL CWndEx::Create(const CRect& crStart, CWnd* pParentWnd)
 	if (!AfxRegisterClass(&wc))
 		return FALSE;		
 	
-	return CWndEx::CreateEx(0, _T("QPasteClass"), _T("Quick Paste"), WS_POPUP,
+	return CWndEx::CreateEx(0, _T("QPasteClass"), _T("Quick Paste"), WS_POPUP | WS_CLIPCHILDREN,
 		crStart, pParentWnd, 0);
 }
 
