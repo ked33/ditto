@@ -641,6 +641,15 @@
     <ClCompile Include="src\SaveAnimation.cpp" />
     <ClCompile Include="src\ScriptEditor.cpp" />
     <ClCompile Include="src\ScrollHelper.cpp" />
+    <ClCompile Include="src\SearchIndex.cpp" />
+    <ClCompile Include="src\SearchIndexSql.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="src\SearchEditBox.cpp" />
     <ClCompile Include="src\SelectDB.cpp" />
     <ClCompile Include="src\SendKeys.cpp" />
@@ -655,8 +664,14 @@
     <ClCompile Include="src\sqlite\sqlite3mc_amalgamation.c">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">SQLITE_ENABLE_FTS5;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|x64'">SQLITE_ENABLE_FTS5;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">SQLITE_ENABLE_FTS5;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">SQLITE_ENABLE_FTS5;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">SQLITE_ENABLE_FTS5;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">SQLITE_ENABLE_FTS5;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <ClCompile Include="src\StdAfx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
@@ -828,6 +843,8 @@
     <ClInclude Include="src\SaveAnimation.h" />
     <ClInclude Include="src\ScriptEditor.h" />
     <ClInclude Include="src\ScrollHelper.h" />
+    <ClInclude Include="src\SearchIndex.h" />
+    <ClInclude Include="src\SearchIndexSql.h" />
     <ClInclude Include="src\SearchEditBox.h" />
     <ClInclude Include="src\SelectDB.h" />
     <ClInclude Include="src\SendKeys.h" />

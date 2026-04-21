@@ -7,6 +7,7 @@
 #include "Clip.h"
 #include "DatabaseUtilities.h"
 #include "Crc32Dynamic.h"
+#include "SearchIndex.h"
 #include "sqlite\CppSQLite3.h"
 #include "..\Shared\TextConvert.h"
 #include "zlib.h"
@@ -1049,6 +1050,8 @@ bool CClip::AddToDataTable()
 		}
 	}
 	CATCH_SQLITE_EXCEPTION_AND_RETURN(false)
+
+	SearchIndex::UpdateClipFullText(theApp.m_db, m_id, GetUnicodeTextFormat());
 		
 	return true;
 }

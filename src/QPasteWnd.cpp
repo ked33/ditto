@@ -23,6 +23,7 @@
 #include "Path.h"
 #include "ProcessPaste.h"
 #include "QPasteWnd.h"
+#include "SearchIndex.h"
 #include "SendMail.h"
 #include <algorithm>
 #include <signal.h>
@@ -940,6 +941,8 @@ BOOL CQPasteWnd::ShowQPasteWindow(BOOL bFillList)
 	{
 		FillList();
 	}
+
+	m_extraDataThread.FireLoadAccelerators();
 	else
 	{
 		MoveControls();
@@ -1460,120 +1463,239 @@ BOOL CQPasteWnd::FillList(CString csSQLSearch)
 		bool bFullTextPrefixSearch = (csSQLSearch.Left(3) == _T("/f ") ||
 			csSQLSearch.Left(3) == _T("\\f "));
 
-		CFormatSQL descriptionFormat;
-		CString descriptionSql;
-		CFormatSQL quickPasteFormat;
-		CString quickPasteSql;
-		CFormatSQL fullTextFormat;
-		CString fullTextSql;
-
-		//If other are off then always search the description
-		if (bQuickPastePrefixSearch == false &&
-			(CGetSetOptions::GetSearchDescription() ||
-			(CGetSetOptions::GetSearchFullText() == FALSE && CGetSetOptions::GetSearchQuickPaste() == FALSE)))
+		if (SearchIndex::IsReady())
 		{
-			descriptionFormat.SetVariable("Main.mText");
+			const bool useIndexedSearch = (CGetSetOptions::GetRegExTextSearch() == FALSE);
+			CString searchSourceTable = useIndexedSearch ? _T("MainSearchIndex Search") : _T("MainSearchCache Search");
 
-			descriptionFormat.Parse(csSQLSearch);
-			descriptionSql = descriptionFormat.GetSQLString();
-		}
+			CFormatSQL descriptionFormat;
+			CString descriptionSql;
+			CFormatSQL quickPasteFormat;
+			CString quickPasteSql;
+			CFormatSQL fullTextFormat;
+			CString fullTextSql;
 
-		if (bQuickPastePrefixSearch ||
-			CGetSetOptions::GetSearchQuickPaste())
-		{
-			CString quickPasteSearch(csSQLSearch);
-
-			if (bQuickPastePrefixSearch)
+			if (bQuickPastePrefixSearch == false &&
+				(CGetSetOptions::GetSearchDescription() ||
+					(CGetSetOptions::GetSearchFullText() == FALSE && CGetSetOptions::GetSearchQuickPaste() == FALSE)))
 			{
-				quickPasteSearch = quickPasteSearch.Mid(2);
-				quickPasteSearch.TrimLeft();
+				descriptionFormat.SetVariable(_T("Search.description"));
+				descriptionFormat.Parse(csSQLSearch);
+				descriptionSql = descriptionFormat.GetSQLString();
 			}
 
-			if (quickPasteSearch.IsEmpty())
+			if (bQuickPastePrefixSearch ||
+				CGetSetOptions::GetSearchQuickPaste())
 			{
-				quickPasteSql = _T("(Main.QuickPasteText IS NOT NULL AND Main.QuickPasteText <> '')");
+				CString quickPasteSearch(csSQLSearch);
+
+				if (bQuickPastePrefixSearch)
+				{
+					quickPasteSearch = quickPasteSearch.Mid(2);
+					quickPasteSearch.TrimLeft();
+				}
+
+				if (quickPasteSearch.IsEmpty())
+				{
+					quickPasteSql = _T("(Search.quickpaste <> '')");
+				}
+				else
+				{
+					quickPasteFormat.SetVariable(_T("Search.quickpaste"));
+					quickPasteFormat.Parse(quickPasteSearch);
+					quickPasteSql = quickPasteFormat.GetSQLString();
+					quickPasteSql.Insert(1, _T("Search.quickpaste <> '' AND "));
+				}
+
+				if (bQuickPastePrefixSearch)
+				{
+					csSQLSearch = quickPasteSearch;
+				}
 			}
-			else
+
+			if (bQuickPastePrefixSearch == false &&
+				(bFullTextPrefixSearch ||
+					CGetSetOptions::GetSearchFullText()))
 			{
-				quickPasteFormat.SetVariable("Main.QuickPasteText");
-				quickPasteFormat.Parse(quickPasteSearch);
-				quickPasteSql = quickPasteFormat.GetSQLString();
-				quickPasteSql.Insert(1, _T("Main.QuickPasteText IS NOT NULL AND Main.QuickPasteText <> '' AND "));
+				CString fullTextSearch(csSQLSearch);
+				if (bFullTextPrefixSearch)
+				{
+					fullTextSearch = fullTextSearch.Mid(3);
+					fullTextSearch.TrimLeft();
+					csSQLSearch = fullTextSearch;
+				}
+
+				if (fullTextSearch.IsEmpty())
+				{
+					fullTextSql = _T("(Search.fulltext <> '')");
+				}
+				else
+				{
+					fullTextFormat.SetVariable(_T("Search.fulltext"));
+					fullTextFormat.Parse(fullTextSearch);
+					fullTextSql = fullTextFormat.GetSQLString();
+					fullTextSql.Insert(1, _T("Search.fulltext <> '' AND "));
+				}
 			}
 
-			if (bQuickPastePrefixSearch)
-			{
-				csSQLSearch = quickPasteSearch;
-			}
-		}
+			CString searchFilter = _T("(");
 
-		if (bQuickPastePrefixSearch == false &&
-			(bFullTextPrefixSearch ||
-			CGetSetOptions::GetSearchFullText()))
-		{
-			dataJoin = _T("INNER JOIN Data on Data.lParentID = Main.lID");
-
-			if (bFullTextPrefixSearch)
-			{
-				csSQLSearch = csSQLSearch.Mid(3);
-			}
-
-			fullTextFormat.SetVariable("Data.ooData");
-			fullTextFormat.Parse(csSQLSearch);
-			fullTextSql = fullTextFormat.GetSQLString();
-
-			fullTextSql.Insert(1, _T("Data.strClipBoardFormat = 'CF_UNICODETEXT' AND "));
-
-			//If we are also search for other text make sure we only get one entry, including the data rows will cause multiple rows to be returned
 			if (descriptionSql != _T(""))
 			{
-				IsDistinct = _T("DISTINCT");
+				searchFilter += descriptionSql;
 			}
 
 			if (quickPasteSql != _T(""))
 			{
-				IsDistinct = _T("DISTINCT");
+				if (descriptionSql != _T(""))
+				{
+					searchFilter += _T(" OR ");
+				}
+
+				searchFilter += quickPasteSql;
 			}
+
+			if (fullTextSql != _T(""))
+			{
+				if (descriptionSql != _T("") ||
+					quickPasteSql != _T(""))
+				{
+					searchFilter += _T(" OR ");
+				}
+
+				searchFilter += fullTextSql;
+			}
+
+			searchFilter += _T(")");
+
+			strFilter.Format(_T("Main.lID IN (SELECT rowid FROM %s WHERE %s)"), searchSourceTable, searchFilter);
+
+			if (strParentFilter.IsEmpty() == FALSE)
+			{
+				strFilter += _T(" AND ");
+				strFilter += strParentFilter;
+			}
+
+			m_strSQLSearch = strFilter;
+			m_strSearch = csSQLSearch;
 		}
-
-		strFilter = _T("(");
-
-		if (descriptionSql != _T(""))
+		else
 		{
-			strFilter += descriptionSql;
-		}
+			CFormatSQL descriptionFormat;
+			CString descriptionSql;
+			CFormatSQL quickPasteFormat;
+			CString quickPasteSql;
+			CFormatSQL fullTextFormat;
+			CString fullTextSql;
 
-		if (quickPasteSql != _T(""))
-		{
+			//If other are off then always search the description
+			if (bQuickPastePrefixSearch == false &&
+				(CGetSetOptions::GetSearchDescription() ||
+				(CGetSetOptions::GetSearchFullText() == FALSE && CGetSetOptions::GetSearchQuickPaste() == FALSE)))
+			{
+				descriptionFormat.SetVariable("Main.mText");
+
+				descriptionFormat.Parse(csSQLSearch);
+				descriptionSql = descriptionFormat.GetSQLString();
+			}
+
+			if (bQuickPastePrefixSearch ||
+				CGetSetOptions::GetSearchQuickPaste())
+			{
+				CString quickPasteSearch(csSQLSearch);
+
+				if (bQuickPastePrefixSearch)
+				{
+					quickPasteSearch = quickPasteSearch.Mid(2);
+					quickPasteSearch.TrimLeft();
+				}
+
+				if (quickPasteSearch.IsEmpty())
+				{
+					quickPasteSql = _T("(Main.QuickPasteText IS NOT NULL AND Main.QuickPasteText <> '')");
+				}
+				else
+				{
+					quickPasteFormat.SetVariable("Main.QuickPasteText");
+					quickPasteFormat.Parse(quickPasteSearch);
+					quickPasteSql = quickPasteFormat.GetSQLString();
+					quickPasteSql.Insert(1, _T("Main.QuickPasteText IS NOT NULL AND Main.QuickPasteText <> '' AND "));
+				}
+
+				if (bQuickPastePrefixSearch)
+				{
+					csSQLSearch = quickPasteSearch;
+				}
+			}
+
+			if (bQuickPastePrefixSearch == false &&
+				(bFullTextPrefixSearch ||
+				CGetSetOptions::GetSearchFullText()))
+			{
+				dataJoin = _T("INNER JOIN Data on Data.lParentID = Main.lID");
+
+				if (bFullTextPrefixSearch)
+				{
+					csSQLSearch = csSQLSearch.Mid(3);
+				}
+
+				fullTextFormat.SetVariable("Data.ooData");
+				fullTextFormat.Parse(csSQLSearch);
+				fullTextSql = fullTextFormat.GetSQLString();
+
+				fullTextSql.Insert(1, _T("Data.strClipBoardFormat = 'CF_UNICODETEXT' AND "));
+
+				//If we are also search for other text make sure we only get one entry, including the data rows will cause multiple rows to be returned
+				if (descriptionSql != _T(""))
+				{
+					IsDistinct = _T("DISTINCT");
+				}
+
+				if (quickPasteSql != _T(""))
+				{
+					IsDistinct = _T("DISTINCT");
+				}
+			}
+
+			strFilter = _T("(");
+
 			if (descriptionSql != _T(""))
 			{
-				strFilter += _T(" OR ");
+				strFilter += descriptionSql;
 			}
 
-			strFilter += quickPasteSql;
-		}
-
-		if (fullTextSql != _T(""))
-		{
-			if (descriptionSql != _T("") ||
-				quickPasteSql != _T(""))
+			if (quickPasteSql != _T(""))
 			{
-				strFilter += _T(" OR ");
+				if (descriptionSql != _T(""))
+				{
+					strFilter += _T(" OR ");
+				}
+
+				strFilter += quickPasteSql;
 			}
 
-			strFilter += fullTextSql;
+			if (fullTextSql != _T(""))
+			{
+				if (descriptionSql != _T("") ||
+					quickPasteSql != _T(""))
+				{
+					strFilter += _T(" OR ");
+				}
+
+				strFilter += fullTextSql;
+			}
+
+			strFilter += _T(")");
+
+			if (strParentFilter.IsEmpty() == FALSE)
+			{
+				strFilter += " AND ";
+				strFilter += strParentFilter;
+			}
+
+			m_strSQLSearch = strFilter;
+			m_strSearch = csSQLSearch;
 		}
-
-		strFilter += _T(")");
-
-		if (strParentFilter.IsEmpty() == FALSE)
-		{
-			strFilter += " AND ";
-			strFilter += strParentFilter;
-		}
-
-		m_strSQLSearch = strFilter;
-		m_strSearch = csSQLSearch;
 	}
 
 	CString sql;
@@ -6157,6 +6279,16 @@ LRESULT CQPasteWnd::OnRefeshRow(WPARAM wParam, LPARAM lParam)
 
 	if (clipId == -2)
 	{
+		if (m_lstHeader.GetItemCount() == 0)
+		{
+			int loadedCount = 0;
+			{
+				ATL::CCritSecLock csLock(m_CritSection.m_sect);
+				loadedCount = (int)m_listItems.size();
+			}
+			m_lstHeader.SetItemCountEx(loadedCount);
+		}
+
 		m_lstHeader.Invalidate();
 		m_lstHeader.RedrawWindow();
 

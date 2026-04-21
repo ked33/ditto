@@ -6,6 +6,7 @@
 #include "CP_Main.h"
 #include "DatabaseUtilities.h"
 #include "ProcessPaste.h"
+#include "SearchIndex.h"
 #include <io.h>
 #include "Path.h"
 #include "zlib.h"
@@ -216,6 +217,10 @@ BOOL OpenDatabase(CString dbPath)
 
 		theApp.m_db.setBusyTimeout(CGetSetOptions::GetDbTimeout());
 		theApp.m_db.SetRegexCaseInsensitive(CGetSetOptions::GetRegexCaseInsensitive());
+		if (SearchIndex::EnsureCurrent(theApp.m_db) == false)
+		{
+			Log(_T("SearchIndex - initialization failed, falling back to legacy search path"));
+		}
 
 		return TRUE;
 	}

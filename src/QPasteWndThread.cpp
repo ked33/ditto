@@ -203,16 +203,7 @@ void CQPasteWndThread::OnLoadItems(void *param)
 				if(firstLoad)
 				{
 					::PostMessage(pasteWnd->m_hWnd, NM_REFRESH_ROW, -2, 0);
-					//allow the next thread message to process, this should be the message to set the list count
-
-					OnSetListCount(param);
-					
-					countCount = GetTickCount() - countCountStart;
-					DWORD acceleratorCountStart = GetTickCount();
-					 
-					OnLoadAccelerators(param);
-
-					acceleratorCount = GetTickCount() - acceleratorCountStart;
+					FireSetListCount();
 				}
 				else
 				{
