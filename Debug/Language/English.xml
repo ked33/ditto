@@ -424,6 +424,122 @@
 		<Item English_Text = "Restoring database" ID = "RestoreDbMsg"></Item>
 		
 		<Item English_Text = "Ditto was unable to open its database, waiting until it can be opened. Update the path in Options if needed. Path: " ID = "StartupNoDbMsg"></Item>
+		<Item English_Text = "Advanced Options" ID = "Advanced Options">Advanced Options</Item>
+		<Item English_Text = "OK" ID = "OK">OK</Item>
+		<Item English_Text = "Cancel" ID = "Cancel">Cancel</Item>
+		<Item English_Text = "Property" ID = "Property">Property</Item>
+		<Item English_Text = "Value" ID = "Value">Value</Item>
+		<Item English_Text = "On Copy Scripts" ID = "On Copy Scripts">On Copy Scripts</Item>
+		<Item English_Text = "On Paste Scripts" ID = "On Paste Scripts">On Paste Scripts</Item>
+		<Item English_Text = "Compact and Repair Database" ID = "Compact and Repair Database">Compact and Repair Database</Item>
+		<Item English_Text = "Ditto" ID = "Ditto">Ditto</Item>
+		<Item English_Text = "Activate window delay (100ms default)" ID = "Activate window delay (100ms default)">Activate window delay (100ms default)</Item>
+		<Item English_Text = "Add file drop when dragging clips" ID = "Add file drop when dragging clips">Add file drop when dragging clips</Item>
+		<Item English_Text = "Allow duplicates" ID = "Allow duplicates">Allow duplicates</Item>
+		<Item English_Text = "Allow back to back duplicates (if allowing duplicates)" ID = "Allow back to back duplicates (if allowing duplicates)">Allow back to back duplicates (if allowing duplicates)</Item>
+		<Item English_Text = "Always show scroll bar" ID = "Always show scroll bar">Always show scroll bar</Item>
+		<Item English_Text = "Append Computer Name and IP when receiving clips" ID = "Append Computer Name and IP when receiving clips">Append Computer Name and IP when receiving clips</Item>
+		<Item English_Text = "Amount of text to save for description" ID = "Amount of text to save for description">Amount of text to save for description</Item>
+		<Item English_Text = "Center window below cursor or caret" ID = "Center window below cursor or caret">Center window below cursor or caret</Item>
+		<Item English_Text = "Copy and save clipboard delay (ms)" ID = "Copy and save clipboard delay (ms)">Copy and save clipboard delay (ms)</Item>
+		<Item English_Text = "Clip edit save delay after load" ID = "Clip edit save delay after load">Clip edit save delay after load</Item>
+		<Item English_Text = "Clip edit save delay after Save" ID = "Clip edit save delay after Save">Clip edit save delay after Save</Item>
+		<Item English_Text = "Clipboard restore delay after copy buffer sent paste (ms, default: 750)" ID = "Clipboard restore delay after copy buffer sent paste (ms, default: 750)">Clipboard restore delay after copy buffer sent paste (ms, default: 750)</Item>
+		<Item English_Text = "Default paste string" ID = "Default paste string">Default paste string</Item>
+		<Item English_Text = "Default copy string" ID = "Default copy string">Default copy string</Item>
+		<Item English_Text = "Default cut string" ID = "Default cut string">Default cut string</Item>
+		<Item English_Text = "Exclude clips by Regular Expressions" ID = "Exclude clips by Regular Expressions">Exclude clips by Regular Expressions</Item>
+		<Item English_Text = "1 Regex" ID = "1 Regex">1 Regex</Item>
+		<Item English_Text = "1 Process Name" ID = "1 Process Name">1 Process Name</Item>
+		<Item English_Text = "2 Regex" ID = "2 Regex">2 Regex</Item>
+		<Item English_Text = "2 Process Name" ID = "2 Process Name">2 Process Name</Item>
+		<Item English_Text = "3 Regex" ID = "3 Regex">3 Regex</Item>
+		<Item English_Text = "3 Process Name" ID = "3 Process Name">3 Process Name</Item>
+		<Item English_Text = "4 Regex" ID = "4 Regex">4 Regex</Item>
+		<Item English_Text = "4 Process Name" ID = "4 Process Name">4 Process Name</Item>
+		<Item English_Text = "5 Regex" ID = "5 Regex">5 Regex</Item>
+		<Item English_Text = "5 Process Name" ID = "5 Process Name">5 Process Name</Item>
+		<Item English_Text = "6 Regex" ID = "6 Regex">6 Regex</Item>
+		<Item English_Text = "6 Process Name" ID = "6 Process Name">6 Process Name</Item>
+		<Item English_Text = "7 Regex" ID = "7 Regex">7 Regex</Item>
+		<Item English_Text = "7 Process Name" ID = "7 Process Name">7 Process Name</Item>
+		<Item English_Text = "8 Regex" ID = "8 Regex">8 Regex</Item>
+		<Item English_Text = "8 Process Name" ID = "8 Process Name">8 Process Name</Item>
+		<Item English_Text = "9 Regex" ID = "9 Regex">9 Regex</Item>
+		<Item English_Text = "9 Process Name" ID = "9 Process Name">9 Process Name</Item>
+		<Item English_Text = "10 Regex" ID = "10 Regex">10 Regex</Item>
+		<Item English_Text = "10 Process Name" ID = "10 Process Name">10 Process Name</Item>
+		<Item English_Text = "11 Regex" ID = "11 Regex">11 Regex</Item>
+		<Item English_Text = "11 Process Name" ID = "11 Process Name">11 Process Name</Item>
+		<Item English_Text = "12 Regex" ID = "12 Regex">12 Regex</Item>
+		<Item English_Text = "12 Process Name" ID = "12 Process Name">12 Process Name</Item>
+		<Item English_Text = "13 Regex" ID = "13 Regex">13 Regex</Item>
+		<Item English_Text = "13 Process Name" ID = "13 Process Name">13 Process Name</Item>
+		<Item English_Text = "14 Regex" ID = "14 Regex">14 Regex</Item>
+		<Item English_Text = "14 Process Name" ID = "14 Process Name">14 Process Name</Item>
+		<Item English_Text = "15 Regex" ID = "15 Regex">15 Regex</Item>
+		<Item English_Text = "15 Process Name" ID = "15 Process Name">15 Process Name</Item>
+		<Item English_Text = "Diff application path" ID = "Diff application path">Diff application path</Item>
+		<Item English_Text = "Diff save compare files as utf8" ID = "Diff save compare files as utf8">Diff save compare files as utf8</Item>
+		<Item English_Text = "Disable friends" ID = "Disable friends">Disable friends</Item>
+		<Item English_Text = "Display icon in system tray" ID = "Display icon in system tray">Display icon in system tray</Item>
+		<Item English_Text = "Double shortcut keystroke timeout)" ID = "Double shortcut keystroke timeout)">Double shortcut keystroke timeout)</Item>
+		<Item English_Text = "Draw copied color code (hex #RRGGBB or rgb(r,g,b)" ID = "Draw copied color code (hex #RRGGBB or rgb(r,g,b)">Draw copied color code (hex #RRGGBB or rgb(r,g,b)</Item>
+		<Item English_Text = "Draw RTF text in list (for RTF types) (could increase memory usage an display speed)" ID = "Draw RTF text in list (for RTF types) (could increase memory usage an display speed)">Draw RTF text in list (for RTF types) (could increase memory usage an display speed)</Item>
+		<Item English_Text = "Editor default font size" ID = "Editor default font size">Editor default font size</Item>
+		<Item English_Text = "Elevated privileges to paste into elevated apps" ID = "Elevated privileges to paste into elevated apps">Elevated privileges to paste into elevated apps</Item>
+		<Item English_Text = "Ensure Ditto is always connected to the clipboard" ID = "Ensure Ditto is always connected to the clipboard">Ensure Ditto is always connected to the clipboard</Item>
+		<Item English_Text = "Ensure entire window is visible" ID = "Ensure entire window is visible">Ensure entire window is visible</Item>
+		<Item English_Text = "Fast thumbnail mode (default: true means low quality but fast. false means high quality but slow)" ID = "Fast thumbnail mode (default: true means low quality but fast. false means high quality but slow)">Fast thumbnail mode (default: true means low quality but fast. false means high quality but slow)</Item>
+		<Item English_Text = "Find as you type" ID = "Find as you type">Find as you type</Item>
+		<Item English_Text = "First ten hot keys start index" ID = "First ten hot keys start index">First ten hot keys start index</Item>
+		<Item English_Text = "First ten hot keys font size" ID = "First ten hot keys font size">First ten hot keys font size</Item>
+		<Item English_Text = "Hide Ditto on hot key if Ditto is visible" ID = "Hide Ditto on hot key if Ditto is visible">Hide Ditto on hot key if Ditto is visible</Item>
+		<Item English_Text = "Ignore copies faster than (ms) (default: 500)" ID = "Ignore copies faster than (ms) (default: 500)">Ignore copies faster than (ms) (default: 500)</Item>
+		<Item English_Text = "Ignore annoying CF_DIB when a clip is detected as text content" ID = "Ignore annoying CF_DIB when a clip is detected as text content">Ignore annoying CF_DIB when a clip is detected as text content</Item>
+		<Item English_Text = "Image editor path (empty for system mapping)" ID = "Image editor path (empty for system mapping)">Image editor path (empty for system mapping)</Item>
+		<Item English_Text = "Maintain search view" ID = "Maintain search view">Maintain search view</Item>
+		<Item English_Text = "Maximum clip size in bytes (0 for no limit)" ID = "Maximum clip size in bytes (0 for no limit)">Maximum clip size in bytes (0 for no limit)</Item>
+		<Item English_Text = "Move selection on open hot key" ID = "Move selection on open hot key">Move selection on open hot key</Item>
+		<Item English_Text = "Multi-paste clip separator ([LF] = line feed)" ID = "Multi-paste clip separator ([LF] = line feed)">Multi-paste clip separator ([LF] = line feed)</Item>
+		<Item English_Text = "Multi-paste in reverse order" ID = "Multi-paste in reverse order">Multi-paste in reverse order</Item>
+		<Item English_Text = "Network send receive port (default: 23443)" ID = "Network send receive port (default: 23443)">Network send receive port (default: 23443)</Item>
+		<Item English_Text = "Network server bind IP (default: *)" ID = "Network server bind IP (default: *)">Network server bind IP (default: *)</Item>
+		<Item English_Text = "On copy play the sound" ID = "On copy play the sound">On copy play the sound</Item>
+		<Item English_Text = "Open to group same as active exe" ID = "Open to group same as active exe">Open to group same as active exe</Item>
+		<Item English_Text = "Paste clip in active window after selection" ID = "Paste clip in active window after selection">Paste clip in active window after selection</Item>
+		<Item English_Text = "Prompt when deleting clips" ID = "Prompt when deleting clips">Prompt when deleting clips</Item>
+		<Item English_Text = "QRCode Url" ID = "QRCode Url">QRCode Url</Item>
+		<Item English_Text = "Refresh view after paste" ID = "Refresh view after paste">Refresh view after paste</Item>
+		<Item English_Text = "Regex case insensitive search" ID = "Regex case insensitive search">Regex case insensitive search</Item>
+		<Item English_Text = "Revert to top level group on close" ID = "Revert to top level group on close">Revert to top level group on close</Item>
+		<Item English_Text = "RTF editor path" ID = "RTF editor path">RTF editor path</Item>
+		<Item English_Text = "Save clipboard delay (ms, default: 100)" ID = "Save clipboard delay (ms, default: 100)">Save clipboard delay (ms, default: 100)</Item>
+		<Item English_Text = "Save multi-pastes" ID = "Save multi-pastes">Save multi-pastes</Item>
+		<Item English_Text = "Selected index" ID = "Selected index">Selected index</Item>
+		<Item English_Text = "Send keys delay (ms)" ID = "Send keys delay (ms)">Send keys delay (ms)</Item>
+		<Item English_Text = "Show clips that are in groups in main list" ID = "Show clips that are in groups in main list">Show clips that are in groups in main list</Item>
+		<Item English_Text = "Show in taskbar" ID = "Show in taskbar">Show in taskbar</Item>
+		<Item English_Text = "Show indicator a clip has been pasted" ID = "Show indicator a clip has been pasted">Show indicator a clip has been pasted</Item>
+		<Item English_Text = "Show leading whitespace" ID = "Show leading whitespace">Show leading whitespace</Item>
+		<Item English_Text = "Show message that we received a manual sent clip" ID = "Show message that we received a manual sent clip">Show message that we received a manual sent clip</Item>
+		<Item English_Text = "Show startup tooltip message" ID = "Show startup tooltip message">Show startup tooltip message</Item>
+		<Item English_Text = "Show text for first ten copy hot keys" ID = "Show text for first ten copy hot keys">Show text for first ten copy hot keys</Item>
+		<Item English_Text = "Show thumbnails(for CF_DIB and PNG types) (could increase memory usage and display speed)" ID = "Show thumbnails(for CF_DIB and PNG types) (could increase memory usage and display speed)">Show thumbnails(for CF_DIB and PNG types) (could increase memory usage and display speed)</Item>
+		<Item English_Text = "Slugify Separator (default: -)" ID = "Slugify Separator (default: -)">Slugify Separator (default: -)</Item>
+		<Item English_Text = "Support all types ignoring supported type list (default: false))" ID = "Support all types ignoring supported type list (default: false))">Support all types ignoring supported type list (default: false))</Item>
+		<Item English_Text = "Text editor path (empty for system mapping)" ID = "Text editor path (empty for system mapping)">Text editor path (empty for system mapping)</Item>
+		<Item English_Text = "Text lines per clip" ID = "Text lines per clip">Text lines per clip</Item>
+		<Item English_Text = "Tooltip display characters" ID = "Tooltip display characters">Tooltip display characters</Item>
+		<Item English_Text = "Tooltip display time(ms) max of 32000 (-1 default (5 seconds), 0 to turn off)" ID = "Tooltip display time(ms) max of 32000 (-1 default (5 seconds), 0 to turn off)">Tooltip display time(ms) max of 32000 (-1 default (5 seconds), 0 to turn off)</Item>
+		<Item English_Text = "Tooltip maximum display lines" ID = "Tooltip maximum display lines">Tooltip maximum display lines</Item>
+		<Item English_Text = "Transparency enabled" ID = "Transparency enabled">Transparency enabled</Item>
+		<Item English_Text = "Transparency percentage" ID = "Transparency percentage">Transparency percentage</Item>
+		<Item English_Text = "Update clip Order on ctrl-c" ID = "Update clip Order on ctrl-c">Update clip Order on ctrl-c</Item>
+		<Item English_Text = "Update clip order on paste" ID = "Update clip order on paste">Update clip order on paste</Item>
+		<Item English_Text = "Update description on clip edit" ID = "Update description on clip edit">Update description on clip edit</Item>
+		<Item English_Text = "Write debug to file" ID = "Write debug to file">Write debug to file</Item>
+		<Item English_Text = "Write debug to OutputDebugString" ID = "Write debug to OutputDebugString">Write debug to OutputDebugString</Item>
 				
 		<Item English_Text = "At Caret" ID = "AtCaret"></Item>
 		<Item English_Text = "At Cursor" ID = "AtCursor"></Item>
@@ -646,6 +762,46 @@
 		<Item English_Text = "Global HotKeys" ID = "83"></Item>
 		<Item English_Text = "Delete Clip Data" ID = "84"></Item>
 		<Item English_Text = "Replace Top Sticky Clip" ID = "85"></Item>		
+		<Item English_Text = "Prompt send to friend" ID = "86">Prompt send to friend</Item>
+		<Item English_Text = "Save copied file (cf_hdrop) contents into Ditto" ID = "87">Save copied file (cf_hdrop) contents into Ditto</Item>
+		<Item English_Text = "Toggle clipboard connection" ID = "88">Toggle clipboard connection</Item>
+		<Item English_Text = "Move Selection Up" ID = "89">Move Selection Up</Item>
+		<Item English_Text = "Move Selection Down" ID = "90">Move Selection Down</Item>
+		<Item English_Text = "Toggle Description Word Wrap" ID = "91">Toggle Description Word Wrap</Item>
+		<Item English_Text = "Apply Last Search" ID = "92">Apply Last Search</Item>
+		<Item English_Text = "Toggle Search Method" ID = "93">Toggle Search Method</Item>
+		<Item English_Text = "Paste Script" ID = "94">Paste Script</Item>
+		<Item English_Text = "Move Clip Last" ID = "95">Move Clip Last</Item>
+		<Item English_Text = "Paste, Don't Change Clip Order" ID = "96">Paste, Don't Change Clip Order</Item>
+		<Item English_Text = "Paste, Trim White Space" ID = "97">Paste, Trim White Space</Item>
+		<Item English_Text = "Set Transparency None" ID = "98">Set Transparency None</Item>
+		<Item English_Text = "Set Transparency 5%" ID = "99">Set Transparency 5%</Item>
+		<Item English_Text = "Set Transparency 10%" ID = "100">Set Transparency 10%</Item>
+		<Item English_Text = "Set Transparency 15%" ID = "101">Set Transparency 15%</Item>
+		<Item English_Text = "Set Transparency 20%" ID = "102">Set Transparency 20%</Item>
+		<Item English_Text = "Set Transparency 25%" ID = "103">Set Transparency 25%</Item>
+		<Item English_Text = "Set Transparency 30%" ID = "104">Set Transparency 30%</Item>
+		<Item English_Text = "Set Transparency 35%" ID = "105">Set Transparency 35%</Item>
+		<Item English_Text = "Set Transparency 40%" ID = "106">Set Transparency 40%</Item>
+		<Item English_Text = "Toggle Transparency Enabled" ID = "107">Toggle Transparency Enabled</Item>
+		<Item English_Text = "Increase Transparency %" ID = "108">Increase Transparency %</Item>
+		<Item English_Text = "Decrease Transparency %" ID = "109">Decrease Transparency %</Item>
+		<Item English_Text = "EMail, Content In Body" ID = "110">EMail, Content In Body</Item>
+		<Item English_Text = "EMail, Clip Export As Attachment" ID = "111">EMail, Clip Export As Attachment</Item>
+		<Item English_Text = "EMail, Content As Attachment" ID = "112">EMail, Content As Attachment</Item>
+		<Item English_Text = "Gmail" ID = "113">Gmail</Item>
+		<Item English_Text = "Slugify" ID = "114">Slugify</Item>
+		<Item English_Text = "Invert Case" ID = "115">Invert Case</Item>
+		<Item English_Text = "Copy Selection" ID = "116">Copy Selection</Item>
+		<Item English_Text = "Force Close Window" ID = "117">Force Close Window</Item>
+		<Item English_Text = "Refresh List" ID = "118">Refresh List</Item>
+		<Item English_Text = "Delete all non used clips" ID = "119">Delete all non used clips</Item>
+		<Item English_Text = "Show System Context Menu" ID = "120">Show System Context Menu</Item>
+		<Item English_Text = "Set Drag File Name" ID = "121">Set Drag File Name</Item>
+		<Item English_Text = "Paste CamelCase" ID = "122">Paste CamelCase</Item>
+		<Item English_Text = "Paste Muliple Images Horizontally" ID = "123">Paste Muliple Images Horizontally</Item>
+		<Item English_Text = "Paste Muliple Images Vertically" ID = "124">Paste Muliple Images Vertically</Item>
+		<Item English_Text = "Paste ASCII Text Only" ID = "125">Paste ASCII Text Only</Item>
 	
 	</Ditto_Options_Quick_Paste_Keyboard>
 	

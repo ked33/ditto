@@ -392,6 +392,9 @@ CString ActionEnums::EnumDescription(ActionEnumValues value)
 	case PASTE_MULTI_IMAGE_VERTICAL:
 		val = "Paste Muliple Images Vertically";
 		break;
+	case ASCII_TEXT_ONLY:
+		val = "Paste ASCII Text Only";
+		break;
 	}
 
 	CString translatedValue = theApp.m_Language.GetQuickPasteKeyboardString(value, val);

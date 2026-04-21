@@ -8,6 +8,29 @@
 #include "ScriptEditor.h"
 #include "DimWnd.h"
 
+namespace
+{
+	CString AdvGeneralLang(LPCTSTR text)
+	{
+		return theApp.m_Language.GetString(text, text);
+	}
+
+	void TranslatePropertyGridItem(CMFCPropertyGridProperty* prop)
+	{
+		if (prop == NULL)
+		{
+			return;
+		}
+
+		prop->SetName(AdvGeneralLang(prop->GetName()));
+
+		for (int i = 0; i < prop->GetSubItemsCount(); i++)
+		{
+			TranslatePropertyGridItem(prop->GetSubItem(i));
+		}
+	}
+}
+
 
 // CAdvGeneral dialog
 
@@ -167,6 +190,12 @@ BOOL CAdvGeneral::OnInitDialog()
 
 	HICON b = (HICON)LoadImage(AfxGetInstanceHandle(), MAKEINTRESOURCE(IDR_MAINFRAME), IMAGE_ICON, 64, 64, LR_SHARED);
 	SetIcon(b, TRUE);
+	SetWindowText(AdvGeneralLang(_T("Advanced Options")));
+	SetDlgItemText(IDOK, AdvGeneralLang(_T("OK")));
+	SetDlgItemText(IDCANCEL, AdvGeneralLang(_T("Cancel")));
+	SetDlgItemText(IDC_BUTTON_COPY_SCRIPTS, AdvGeneralLang(_T("On Copy Scripts")));
+	SetDlgItemText(IDC_BUTTON_PASTE_SCRIPTS, AdvGeneralLang(_T("On Paste Scripts")));
+	SetDlgItemText(IDC_BT_COMPACT_AND_REPAIR, AdvGeneralLang(_T("Compact and Repair Database")));
 
 	CMFCPropertyGridProperty * pGroupTest = new CMFCPropertyGridProperty( _T( "Ditto" ) );
 	m_propertyGrid.AddProperty(pGroupTest);
@@ -186,6 +215,21 @@ BOOL CAdvGeneral::OnInitDialog()
 	CDPI dpi(m_hWnd);
 	hdItem.cxy = dpi.Scale(400); // whatever you want the property name column width to be
 	m_propertyGrid.GetHeaderCtrl().SetItem(0, &hdItem);
+
+	HDITEM hdTextItem = {};
+	CString propertyHeader = AdvGeneralLang(_T("Property"));
+	hdTextItem.mask = HDI_TEXT;
+	hdTextItem.pszText = propertyHeader.GetBuffer();
+	m_propertyGrid.GetHeaderCtrl().SetItem(0, &hdTextItem);
+	propertyHeader.ReleaseBuffer();
+
+	if (m_propertyGrid.GetHeaderCtrl().GetItemCount() > 1)
+	{
+		CString valueHeader = AdvGeneralLang(_T("Value"));
+		hdTextItem.pszText = valueHeader.GetBuffer();
+		m_propertyGrid.GetHeaderCtrl().SetItem(1, &hdTextItem);
+		valueHeader.ReleaseBuffer();
+	}
 
 	m_propertyGrid.SetFont(this->GetFont());	
 
@@ -364,6 +408,11 @@ BOOL CAdvGeneral::OnInitDialog()
 	regexFilterGroup->AddSubItem(new CMFCPropertyGridProperty(_T("15 Process Name"), CGetSetOptions::GetRegexFilterByProcessName(14), processFilterDesc, SETTING_REGEX_FILTERING_BY_PROCESS_NAME_14));
 
 	regexFilterGroup->Expand(FALSE);
+
+	for (int i = 0; i < m_propertyGrid.GetPropertyCount(); i++)
+	{
+		TranslatePropertyGridItem(m_propertyGrid.GetProperty(i));
+	}
 
 	return TRUE;
 }
