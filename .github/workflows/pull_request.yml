@@ -18,18 +18,17 @@ jobs:
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v2
 
-      - name: Setup NuGet
-        uses: NuGet/setup-nuget@v2
-
-      - name: Restore NuGet packages
+      - name: Restore packages with MSBuild
         working-directory: ${{env.GITHUB_WORKSPACE}}
-        run: nuget restore ${{env.SOLUTION_FILE_PATH}} -PackagesDirectory packages -NoCache -NonInteractive -Verbosity detailed
+        run: msbuild ${{env.SOLUTION_FILE_PATH}} -t:Restore -p:RestorePackagesConfig=true -p:RestoreRepositoryPath=packages -p:RestoreConfigFile=NuGet.Config -p:Configuration=Release -p:Platform=x64 -p:RestoreNoHttpCache=true -verbosity:normal
 
       - name: Verify restored zlib package
         shell: pwsh
         run: |
           $zlibLib = 'packages\zlib-msvc-x64.1.2.11.8900\build\native\lib_release\zlibstatic.lib'
           if (!(Test-Path $zlibLib)) {
+            Write-Host 'Top-level packages directory contents:'
+            Get-ChildItem 'packages' -Force -ErrorAction SilentlyContinue | Select-Object FullName
             throw "Missing restored zlib package file: $zlibLib"
           }
 
