@@ -719,6 +719,33 @@ void CQPasteWnd::MoveControls()
 	}
 }
 
+void CQPasteWnd::RefreshChromeButtonBackgrounds()
+{
+	CRect clientRect;
+	GetClientRect(clientRect);
+	if (clientRect.IsRectEmpty())
+	{
+		return;
+	}
+
+	CClientDC clientDC(this);
+	CDC memDC;
+	memDC.CreateCompatibleDC(&clientDC);
+
+	CBitmap backgroundBitmap;
+	backgroundBitmap.CreateCompatibleBitmap(&clientDC, clientRect.Width(), clientRect.Height());
+	CBitmap* oldBitmap = memDC.SelectObject(&backgroundBitmap);
+
+	CBrush backgroundBrush(CGetSetOptions::m_Theme.MainWindowBG());
+	memDC.FillRect(&clientRect, &backgroundBrush);
+
+	m_ShowGroupsFolderBottom.RefreshBackground(&memDC);
+	m_BackButton.RefreshBackground(&memDC);
+	m_systemMenu.RefreshBackground(&memDC);
+
+	memDC.SelectObject(oldBitmap);
+}
+
 void CQPasteWnd::OnSetFocus(CWnd* pOldWnd)
 {
 	CWndEx::OnSetFocus(pOldWnd);
@@ -945,6 +972,8 @@ BOOL CQPasteWnd::ShowQPasteWindow(BOOL bFillList)
 	{
 		MoveControls();
 	}
+
+	RefreshChromeButtonBackgrounds();
 
 	m_extraDataThread.FireLoadAccelerators();
 
@@ -7268,6 +7297,7 @@ LRESULT CQPasteWnd::OnDpiChanged(WPARAM wParam, LPARAM lParam)
 	this->SetLinesPerRow(CGetSetOptions::GetLinesPerRow(), true, false);
 
 	MoveControls();
+	RefreshChromeButtonBackgrounds();
 
 	m_lstHeader.SetItemCountEx(c);
 	m_lstHeader.SetListPos(Indexs[0]);

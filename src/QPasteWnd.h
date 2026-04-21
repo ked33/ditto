@@ -181,6 +181,7 @@ public:
     BOOL HideQPasteWindow(bool releaseFocus, BOOL clearSearchData = -1);
     BOOL ShowQPasteWindow(BOOL bFillList = TRUE);
     void MoveControls();
+    void RefreshChromeButtonBackgrounds();
 
     void DeleteSelectedRows();
 

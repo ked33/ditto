@@ -646,6 +646,29 @@ void CGdipButton::SetBkGnd(CDC* pDC)
 	bmp.DeleteObject();
 }
 
+void CGdipButton::RefreshBackground(CDC* pDC)
+{
+	m_bHaveBitmaps = FALSE;
+
+	m_dcStd.DeleteDC();
+	m_dcStdP.DeleteDC();
+	m_dcStdH.DeleteDC();
+	m_dcAlt.DeleteDC();
+	m_dcAltP.DeleteDC();
+	m_dcAltH.DeleteDC();
+	m_dcGS.DeleteDC();
+	m_dcBk.DeleteDC();
+
+	m_pCurBtn = (m_bIsToggle && m_bHaveAltImage) ? &m_dcAlt : &m_dcStd;
+
+	if (pDC != NULL)
+	{
+		SetBkGnd(pDC);
+	}
+
+	Invalidate();
+}
+
 
 //=============================================================================
 // Set the tooltip with a string resource

@@ -66,6 +66,7 @@ public:
 	BOOL IsDisabled(void) {return (m_bIsDisabled == TRUE); }
 
 	void SetBkGnd(CDC* pDC);
+	void RefreshBackground(CDC* pDC);
 
 	void SetToolTipText(CString spText, BOOL bActivate = TRUE);
 	void SetToolTipText(UINT nId, BOOL bActivate = TRUE);
