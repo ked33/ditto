@@ -1755,7 +1755,14 @@ BOOL CClip::WriteTextToFile(CString path, BOOL unicode, BOOL asci, BOOL rtf, BOO
 
 			ret = true;
 		}
-		else if(unicode && (w != _T("") || forceUnicode))
+		else if (utf8 && a != _T(""))   
+		{
+		    CStringW unicodeStr = CTextConvert::AnsiToUnicode(a);
+		    CStringA utf8Data = CTextConvert::UnicodeToUTF8(unicodeStr);
+		    f.Write(utf8Data.GetBuffer(), utf8Data.GetLength());
+		    ret = true;
+		}
+		else if (unicode && (w != _T("") || forceUnicode))
 		{
 			std::byte header[2];
 			header[0] = (std::byte)0xFF;
@@ -1765,7 +1772,7 @@ BOOL CClip::WriteTextToFile(CString path, BOOL unicode, BOOL asci, BOOL rtf, BOO
 
 			ret = true;
 		}
-		else if(asci && a != _T(""))
+		else if (asci && a != _T(""))
 		{
 			f.Write(a.GetBuffer(), a.GetLength());
 

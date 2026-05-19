@@ -1344,7 +1344,7 @@ HGLOBAL COleClipSource::ConvertToFileDrop()
 				file.Format(_T("%s%s_%d.txt"), path, name, dragId++);
 			}
 
-			fileClip.WriteTextToFile(file, TRUE, FALSE, FALSE);
+			fileClip.WriteTextToFile(file, FALSE, FALSE, FALSE, FALSE, TRUE);
 			fileList.AddFile(file);
 			continue;
 		}
