@@ -9,6 +9,7 @@ on:
 
 env:
   SOLUTION_FILE_PATH: CP_Main_10.sln
+  CI_PLATFORM_TOOLSET: v143
 
 jobs:
   build:
@@ -36,7 +37,7 @@ jobs:
         run: nuget restore ${{env.SOLUTION_FILE_PATH}}
         
       - name: Build
-        run: msbuild CP_Main_10.sln /p:Configuration=Release /p:Platform=x64
+        run: msbuild CP_Main_10.sln /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=${{ env.CI_PLATFORM_TOOLSET }}
         
       - name: Set Versions
         run: |
