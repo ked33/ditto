@@ -153,8 +153,21 @@
 		<Item English_Text = "CamelCase" ID = "32971"></Item>
 		<Item English_Text = "Multiple Images Horizontally" ID = "32976"></Item>
 		<Item English_Text = "Multiple Images Vertically" ID = "32978"></Item>
+		<Item English_Text = "Ascii Text Only" ID = "32979"></Item>
 		<Item English_Text = "Replace Top Sticky Clip" ID = "32938"></Item>
 		<Item English_Text = "Set Drag File Name" ID = "32970"></Item>
+		
+		//Added 9/4/25 for description window right click menu
+		<Item English_Text = "Remember window position" ID = "32882"></Item>
+		<Item English_Text = "Size window to content" ID = "32883"></Item>
+		<Item English_Text = "Scale images to fit window" ID = "32884"></Item>
+		<Item English_Text = "Hide description window on mouse clip selection" ID = "32926"></Item>
+		<Item English_Text = "Wrap Text" ID = "32928"></Item>
+		<Item English_Text = "Always on top" ID = "32942"></Item>
+		<Item English_Text = "View as Text" ID = "32972"></Item>
+		<Item English_Text = "View as RTF" ID = "32973"></Item>
+		<Item English_Text = "View as HTML" ID = "32974"></Item>
+		<Item English_Text = "View as Image" ID = "32975"></Item>
 		
 	</Ditto_Right_Click_Menu>
 	<Ditto_Clip_Properties>
@@ -332,6 +345,9 @@
 		<Item English_Text = "Add" ID = "1021"></Item>
 		<Item English_Text = "Cancel" ID = "2"></Item>
 		<Item English_Text = "Add Supported Type" ID = "-1"></Item>
+		<Item English_Text = "Current Clipboard Types" ID = "2128"></Item>
+		<Item English_Text = "Primary Clipboard Types" ID = "2145"></Item>
+		<Item English_Text = "Custom Clipboard Type" ID = "2130"></Item>
 	</Ditto_Options_Supported_Types_Add>
 	<Ditto_Move_To_Groups>
 		<Item English_Text = "New Group" ID = "1040"></Item>
@@ -411,7 +427,8 @@
 		<Item English_Text = "Hot Key" ID = "QPHotKey"></Item>
 		<Item English_Text = "Command" ID = "QPCommand"></Item>
 		
-		<Item English_Text = "[Always on top]" ID = "top_most"></Item>
+		//ID changed from "top_most"
+		<Item English_Text = "[Always on top]" ID = "top_window"></Item>
 		
 		<Item English_Text = "[Disconnected]" ID = "disconnected"></Item>
 		<Item English_Text = "Ditto is running minimized, Ditto can be opened by hot keys or by clicking the task tray icon" ID = "StartuMsg"></Item>
@@ -799,10 +816,24 @@
 		<Item English_Text = "Show System Context Menu" ID = "120">Show System Context Menu</Item>
 		<Item English_Text = "Set Drag File Name" ID = "121">Set Drag File Name</Item>
 		<Item English_Text = "Paste CamelCase" ID = "122">Paste CamelCase</Item>
-		<Item English_Text = "Paste Muliple Images Horizontally" ID = "123">Paste Muliple Images Horizontally</Item>
-		<Item English_Text = "Paste Muliple Images Vertically" ID = "124">Paste Muliple Images Vertically</Item>
+		<Item English_Text = "Paste Multiple Images Horizontally" ID = "123">Paste Multiple Images Horizontally</Item>
+		<Item English_Text = "Paste Multiple Images Vertically" ID = "124">Paste Multiple Images Vertically</Item>
 		<Item English_Text = "Paste ASCII Text Only" ID = "125">Paste ASCII Text Only</Item>
-	
+		<Item English_Text = "Paste Position 1 Plain Text Only" ID = "126">Paste Position 1 Plain Text Only</Item>
+		<Item English_Text = "Paste Position 2 Plain Text Only" ID = "127">Paste Position 2 Plain Text Only</Item>
+		<Item English_Text = "Paste Position 3 Plain Text Only" ID = "128">Paste Position 3 Plain Text Only</Item>
+		<Item English_Text = "Paste Position 4 Plain Text Only" ID = "129">Paste Position 4 Plain Text Only</Item>
+		<Item English_Text = "Paste Position 5 Plain Text Only" ID = "130">Paste Position 5 Plain Text Only</Item>
+		<Item English_Text = "Paste Position 6 Plain Text Only" ID = "131">Paste Position 6 Plain Text Only</Item>
+		<Item English_Text = "Paste Position 7 Plain Text Only" ID = "132">Paste Position 7 Plain Text Only</Item>
+		<Item English_Text = "Paste Position 8 Plain Text Only" ID = "133">Paste Position 8 Plain Text Only</Item>
+		<Item English_Text = "Paste Position 9 Plain Text Only" ID = "134">Paste Position 9 Plain Text Only</Item>
+		<Item English_Text = "Paste Position 10 Plain Text Only" ID = "135">Paste Position 10 Plain Text Only</Item>
+		<Item English_Text = "Export To Web Search" ID = "136">Export To Web Search</Item>
+		<Item English_Text = "Generate GUID" ID = "137">Generate GUID</Item>
+		<Item English_Text = "Paste, Posixify Paths" ID = "138">Paste, Posixify Paths</Item>
+		<Item English_Text = "Paste as Image" ID = "139">Paste as Image</Item>
+		<Item English_Text = "Show Starred Clips" ID = "140">Show Starred Clips</Item>
 	</Ditto_Options_Quick_Paste_Keyboard>
 	
 </Ditto_Language_File>

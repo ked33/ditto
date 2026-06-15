@@ -20,6 +20,7 @@ CSpecialPasteOptions::CSpecialPasteOptions()
 	m_pasteScriptGuid = _T("");
 	m_updateClipOrder = true;
 	m_trimWhiteSpace = false;
+	m_PosixifyPaths = false;
 	m_pasteSlugify = false;
 	m_invertCase = false;
 	m_placeCF_HDROP_OnDrag = true;
@@ -27,6 +28,8 @@ CSpecialPasteOptions::CSpecialPasteOptions()
 	m_pasteImagesHorizontal = false;
 	m_pasteImagesVertically = false;
 	m_pasteAsciiOnly = false;
+	m_pasteGuid = false;
+	m_pasteAsImage = false;
 }
 
 CSpecialPasteOptions::~CSpecialPasteOptions()

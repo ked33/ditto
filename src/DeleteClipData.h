@@ -50,7 +50,7 @@ protected:
 		
 
 	CDialogResizer m_Resize;
-	CListCtrl	m_List;
+	CListCtrl	m_clipList;
 	HWND m_hWndParent;
 	CShowTaskBarIcon m_showTaskbar;
 	std::vector<CDeleteData> m_data;
@@ -59,6 +59,8 @@ protected:
 	bool m_applyingDelete;
 	bool m_cancelDelete;
 
+	CToolTipEx* m_pDescriptionWindow;
+
 
 	void InitListCtrlCols();
 	virtual BOOL OnInitDialog();
@@ -66,12 +68,20 @@ protected:
 	void SetDbSize();
 
 	afx_msg void OnClose();
+	void CloseDescriptionWindow();
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	afx_msg void OnNcDestroy();
 	void LoadItems();
 	void FilterItems();
 	bool MatchesFilter(CDeleteData *pdata);
 	void ApplyDelete();
+	void RemoveAllSelection();
+	BOOL SetCaret(int nRow, BOOL bFocus = 1);
+	BOOL SetSelection(int nRow, BOOL bSelect = 1);
+	void SelectRow(int selectedRow);
+	void CreateAndShowDescriptionWindow();
+	void SetDescriptionWindowText(INT_PTR row);
+	void SaveClipDataItemToFile(CDeleteData item);
 
 public:
 	CString m_clipTitle;
@@ -99,11 +109,15 @@ public:
 	CString m_toDeleteSize;
 	afx_msg void OnBnClickedCheckClipTitle();
 	afx_msg void OnBnClickedButtonApply();
-	afx_msg void OnBnClickedCancel();
+	afx_msg void OnBnClickedClose();
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
 	afx_msg void OnBnClickedCheckCreateDate();
 	afx_msg void OnBnClickedCheckLastUseDate();
 	afx_msg void OnBnClickedCheckDataFormat();
 	afx_msg void OnLvnColumnclickList2(NMHDR *pNMHDR, LRESULT *pResult);
-	virtual BOOL PreTranslateMessage(MSG* pMsg);
+	virtual BOOL PreTranslateMessage(MSG* pMsg);	
+	afx_msg void OnContextMenu(CWnd* pWnd, CPoint point);
+	void ShowClipPropertiesWindow();
+	virtual void OnCancel();
+	afx_msg void OnBnClickedBtCompactAndRepair();
 };

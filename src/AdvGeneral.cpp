@@ -7,6 +7,8 @@
 #include "afxdialogex.h"
 #include "ScriptEditor.h"
 #include "DimWnd.h"
+#include "MoveToGroupDlg.h"
+#include "SQlite/CppSQLite3.h"
 
 namespace
 {
@@ -64,6 +66,7 @@ BEGIN_MESSAGE_MAP(CAdvGeneral, CDialogEx)
 	ON_WM_NCLBUTTONDOWN()
 	ON_EN_CHANGE(IDC_EDIT_ADV_FILTER, &CAdvGeneral::OnEnChangeAdvFilter)
 	ON_BN_CLICKED(IDC_BUTTON_NEXT_MATCH, &CAdvGeneral::OnBnClickedButtonNextMatch)
+	ON_BN_CLICKED(IDC_BUTTON_COPY_SCRIPTS2, &CAdvGeneral::OnBnClickedButtonCopyScripts2)
 END_MESSAGE_MAP()
 
 
@@ -181,6 +184,11 @@ END_MESSAGE_MAP()
 #define SETTING_IMAGE_EDITOR_PATH 104
 #define SETTING_CLIP_EDIT_SAVE_DELAY_AFTER_LOAD 105
 #define SETTING_ClIP_EDIT_SAVE_DELAY_AFTER_SAVE 106
+#define SETTING_WEB_SEARCH_URL 107
+#define SETTING_DO_NOT_HIDE_ON_DEACTIVATE 108
+#define SETTING_HIDE_TASKBAR_ICON_ON_CLOSE 109
+#define SETTING_USE_MODERN_SCROLLBAR 110
+#define SETTING_ENFORCE_CLIPBOARD_IGNORE_FORMATS 111
 
 BOOL CAdvGeneral::OnInitDialog()
 {
@@ -196,6 +204,7 @@ BOOL CAdvGeneral::OnInitDialog()
 	SetDlgItemText(IDC_BUTTON_COPY_SCRIPTS, AdvGeneralLang(_T("On Copy Scripts")));
 	SetDlgItemText(IDC_BUTTON_PASTE_SCRIPTS, AdvGeneralLang(_T("On Paste Scripts")));
 	SetDlgItemText(IDC_BT_COMPACT_AND_REPAIR, AdvGeneralLang(_T("Compact and Repair Database")));
+	SetDlgItemText(IDC_BUTTON_COPY_SCRIPTS2, AdvGeneralLang(_T("Reset Clip Order")));
 
 	CMFCPropertyGridProperty * pGroupTest = new CMFCPropertyGridProperty( _T( "Ditto" ) );
 	m_propertyGrid.AddProperty(pGroupTest);
@@ -209,6 +218,7 @@ BOOL CAdvGeneral::OnInitDialog()
 	m_Resize.AddControl(IDC_BUTTON_PASTE_SCRIPTS, DR_MoveTop);
 	m_Resize.AddControl(IDC_EDIT_ADV_FILTER, DR_SizeWidth);
 	m_Resize.AddControl(IDC_BUTTON_NEXT_MATCH, DR_MoveLeft);
+	m_Resize.AddControl(IDC_BUTTON_COPY_SCRIPTS2, DR_MoveTop);
 
 	HDITEM hdItem;
 	hdItem.mask = HDI_WIDTH; // indicating cxy is width
@@ -241,6 +251,7 @@ BOOL CAdvGeneral::OnInitDialog()
 	AddTrueFalse(pGroupTest, _T("Allow back to back duplicates (if allowing duplicates)"), CGetSetOptions::GetAllowBackToBackDuplicates(), SETTING_ALOW_BACK_TO_BACK_DUPLICATES);
 
 	AddTrueFalse(pGroupTest, _T("Always show scroll bar"), CGetSetOptions::GetShowScrollBar(), SETTING_ALWAYS_SHOW_SCROLL_BAR);
+	AddTrueFalse(pGroupTest, _T("Use modern scroll bar"), CGetSetOptions::GetUseModernScrollBar(), SETTING_USE_MODERN_SCROLLBAR);
 	AddTrueFalse(pGroupTest, _T("Append Computer Name and IP when receiving clips"), CGetSetOptions::GetAppendRemoveComputerNameAndIPToDescription(), SETTING_APPEND_NAME_IP);
 
 	pGroupTest->AddSubItem(new CMFCPropertyGridProperty(_T("Amount of text to save for description"), CGetSetOptions::m_bDescTextSize, _T(""), SETTING_DESC_SIZE));
@@ -266,17 +277,20 @@ BOOL CAdvGeneral::OnInitDialog()
 
 	AddTrueFalse(pGroupTest, _T("Display icon in system tray"), CGetSetOptions::GetShowIconInSysTray(), SETTING_SHOW_TASKBAR_ICON);
 
+	AddTrueFalse(pGroupTest, _T("Do not hide Ditto window on deactivate"), CGetSetOptions::GetDoNotHideOnDeactivate(), SETTING_DO_NOT_HIDE_ON_DEACTIVATE);
+
 	pGroupTest->AddSubItem(new CMFCPropertyGridProperty(_T("Double shortcut keystroke timeout)"), (long)CGetSetOptions::GetDoubleKeyStrokeTimeout(), _T(""), SETTING_DOUBLE_KEYSTROKE_TIMEOUT));
 
-	AddTrueFalse(pGroupTest, _T("Draw copied color code (hex #RRGGBB or rgb(r,g,b)"), CGetSetOptions::GetDrawCopiedColorCode(), SETTING_DRAW_COPIED_COLOR_CODE);
+	AddTrueFalse(pGroupTest, _T("Draw swatch for hex, RGB, and HSL colors"), CGetSetOptions::GetDrawCopiedColorCode(), SETTING_DRAW_COPIED_COLOR_CODE);
 
 	AddTrueFalse(pGroupTest, _T("Draw RTF text in list (for RTF types) (could increase memory usage an display speed)"), CGetSetOptions::GetDrawRTF(), SETTING_DRAW_RTF);
 	pGroupTest->AddSubItem(new CMFCPropertyGridProperty(_T("Editor default font size"), (long)CGetSetOptions::GetEditorDefaultFontSize(), _T(""), SETTING_EDITOR_FONT_SIZE));
+	AddTrueFalse(pGroupTest, _T("Enforce clipboard ignore formats"), CGetSetOptions::GetEnforceClipboardIgnoreFormats(), SETTING_ENFORCE_CLIPBOARD_IGNORE_FORMATS);
 	AddTrueFalse(pGroupTest, _T("Elevated privileges to paste into elevated apps"), CGetSetOptions::GetPasteAsAdmin(), SETTING_PASTE_AS_ADMIN);
 	AddTrueFalse(pGroupTest, _T("Ensure Ditto is always connected to the clipboard"), CGetSetOptions::GetEnsureConnectToClipboard(), SETTING_ENSURE_CONNECTED);
 	AddTrueFalse(pGroupTest, _T("Ensure entire window is visible"), CGetSetOptions::GetEnsureEntireWindowCanBeSeen(), SETTING_ENSURE_WINDOW_IS_VISIBLE);
 
-	AddTrueFalse(pGroupTest, _T("Fast thumbnail mode (default: true means low quality but fast. false means high quality but slow)"), CGetSetOptions::GetFastThumbnailMode(), SETTING_FAST_THUMBNAIL_MODE);
+	AddTrueFalse(pGroupTest, _T("Fast thumbnails (True = fast / low quality (default). False = slow / high quality)"), CGetSetOptions::GetFastThumbnailMode(), SETTING_FAST_THUMBNAIL_MODE);
 
 	AddTrueFalse(pGroupTest, _T("Find as you type"), CGetSetOptions::GetFindAsYouType(), SETTING_FIND_AS_TYPE);
 
@@ -286,7 +300,7 @@ BOOL CAdvGeneral::OnInitDialog()
 	AddTrueFalse(pGroupTest, _T("Hide Ditto on hot key if Ditto is visible"), CGetSetOptions::GetHideDittoOnHotKeyIfAlreadyShown(), SETTING_HIDE_ON_HOTKEY_IF_VISIBLE);
 
 	pGroupTest->AddSubItem(new CMFCPropertyGridProperty(_T("Ignore copies faster than (ms) (default: 500)"), (long)CGetSetOptions::GetSaveClipDelay(), _T(""), SETTING_IGNORE_FALSE_COPIES_DELAY));
-	pGroupTest->AddSubItem(new CMFCPropertyGridProperty(_T("Ignore annoying CF_DIB when a clip is detected as text content"), CGetSetOptions::GetIgnoreAnnoyingCFDIB(), _T("Case insensitive. Recommended option is \"excel.exe; onenote.exe; powerpnt.exe\" "), SETTING_IGNORE_ANNOYING_CF_DIB));
+	pGroupTest->AddSubItem(new CMFCPropertyGridProperty(_T("Ignore CF_DIB when a clip is detected as text content"), CGetSetOptions::GetIgnoreAnnoyingCFDIB(), _T("Case insensitive. Recommended option is \"excel.exe; onenote.exe; powerpnt.exe\" "), SETTING_IGNORE_ANNOYING_CF_DIB));
 
 	static TCHAR BASED_CODE szImageEditorFilter[] = _T("Applications(*.exe)|*.exe||");
 	CMFCPropertyGridFileProperty* pImageEditorProp = new CMFCPropertyGridFileProperty(_T("Image editor path (empty for system mapping)"), TRUE, CGetSetOptions::GetImageEditorPath(), _T("exe"), 0, szImageEditorFilter, (LPCTSTR)0, SETTING_IMAGE_EDITOR_PATH);
@@ -317,7 +331,8 @@ BOOL CAdvGeneral::OnInitDialog()
 	CMFCPropertyGridFileProperty* pTextEditorProp = new CMFCPropertyGridFileProperty(_T("Text editor path (empty for system mapping)"), TRUE, CGetSetOptions::GetTextEditorPath(), _T("exe"), 0, szTextEditorFilter, (LPCTSTR)0, SETTING_TEXT_EDITOR_PATH);
 	pGroupTest->AddSubItem(pTextEditorProp);
 
-	AddTrueFalse(pGroupTest, _T("Paste clip in active window after selection"), CGetSetOptions::GetSendPasteAfterSelection(), SETTING_PASTE_IN_ACTIVE_WINDOW);
+	AddTrueFalse(pGroupTest, _T("Paste clip in active window after selection"), CGetSetOptions::GetSendPasteAfterSelection(), SETTING_PASTE_IN_ACTIVE_WINDOW);	
+
 	AddTrueFalse(pGroupTest, _T("Prompt when deleting clips"), CGetSetOptions::GetPromptWhenDeletingClips(), SETTING_PROMPT_ON_DELETE);
 
 	AddTrueFalse(pGroupTest, _T("Revert to top level group on close"), CGetSetOptions::GetRevertToTopLevelGroup(), SETTING_REVERT_TO_TOP_LEVEL_GROUP);
@@ -342,6 +357,7 @@ BOOL CAdvGeneral::OnInitDialog()
 	AddTrueFalse(pGroupTest, _T("Show clips that are in groups in main list"), CGetSetOptions::GetShowAllClipsInMainList(), SETTING_SHOW_GROUP_CLIPS_IN_LIST);
 	AddTrueFalse(pGroupTest, _T("Show leading whitespace"), CGetSetOptions::GetDescShowLeadingWhiteSpace(), SETTING_SHOW_LEADING_WHITESPACE);
 	AddTrueFalse(pGroupTest, _T("Show in taskbar"), CGetSetOptions::GetShowInTaskBar(), SETTTING_SHOW_IN_TASKBAR);
+	AddTrueFalse(pGroupTest, _T("Hide taskbar icon when Ditto window closes"), CGetSetOptions::GetHideTaskbarIconOnClose(), SETTING_HIDE_TASKBAR_ICON_ON_CLOSE);
 	AddTrueFalse(pGroupTest, _T("Show indicator a clip has been pasted"), CGetSetOptions::GetShowIfClipWasPasted(), SETTING_SHOW_CLIP_PASTED);
 
 	AddTrueFalse(pGroupTest, _T("Show message that we received a manual sent clip"), CGetSetOptions::GetShowMsgWhenReceivingManualSentClip(), SETTING_SHOW_MSG_WHEN_RECEIVING_MANUAL_SENT_CLIP);	
@@ -366,6 +382,8 @@ BOOL CAdvGeneral::OnInitDialog()
 	AddTrueFalse(pGroupTest, _T("Update description on clip edit"), CGetSetOptions::GetUpdateDescWhenSavingClip(), SETTING_UPDATE_DESC_ON_CLIP_EDIT);
 	AddTrueFalse(pGroupTest, _T("Update clip order on paste"), CGetSetOptions::GetUpdateTimeOnPaste(), SETTING_UPDATE_ORDER_ON_PASTE);
 	AddTrueFalse(pGroupTest, _T("Update clip Order on ctrl-c"), CGetSetOptions::GetUpdateClipOrderOnCtrlC(), SETTING_UPDATE_ORDER_ON_CTRL_C);
+
+	pGroupTest->AddSubItem(new CMFCPropertyGridProperty(_T("Web Search Url"), CGetSetOptions::GetWebSearchUrl(), _T(""), SETTING_WEB_SEARCH_URL));
 
 	AddTrueFalse(pGroupTest, _T("Write debug to file"), CGetSetOptions::GetEnableDebugLogging(), SETTING_DEBUG_TO_FILE);
 	AddTrueFalse(pGroupTest, _T("Write debug to OutputDebugString"), CGetSetOptions::GetEnableDebugLogging(), SETTING_DEBUG_TO_OUTPUT_STRING);
@@ -615,6 +633,13 @@ void CAdvGeneral::OnBnClickedOk()
 				{
 					BOOL val = wcscmp(pNewValue->bstrVal, L"True") == 0;
 					CGetSetOptions::SetShowScrollBar(val);
+				}
+				break;
+			case SETTING_USE_MODERN_SCROLLBAR:
+				if (wcscmp(pNewValue->bstrVal, pOrigValue->bstrVal) != 0)
+				{
+					BOOL val = wcscmp(pNewValue->bstrVal, L"True") == 0;
+					CGetSetOptions::SetUseModernScrollBar(val);
 				}
 				break;
 			case SETTING_PASTE_AS_ADMIN:
@@ -1001,6 +1026,33 @@ void CAdvGeneral::OnBnClickedOk()
 					CGetSetOptions::SetClipEditSaveDelayAfterSaveSeconds(pNewValue->lVal);
 				}
 				break;
+			case SETTING_WEB_SEARCH_URL:
+				if (wcscmp(pNewValue->bstrVal, pOrigValue->bstrVal) != 0)
+				{
+					CGetSetOptions::SetWebSearchUrl(pNewValue->bstrVal);
+				}
+				break;
+			case SETTING_DO_NOT_HIDE_ON_DEACTIVATE:
+				if (wcscmp(pNewValue->bstrVal, pOrigValue->bstrVal) != 0)
+				{
+					BOOL val = wcscmp(pNewValue->bstrVal, L"True") == 0;
+					CGetSetOptions::SetDoNotHideOnDeactivate(val);
+				}
+				break;
+			case SETTING_HIDE_TASKBAR_ICON_ON_CLOSE:
+				if (wcscmp(pNewValue->bstrVal, pOrigValue->bstrVal) != 0)
+				{
+					BOOL val = wcscmp(pNewValue->bstrVal, L"True") == 0;
+					CGetSetOptions::SetHideTaskbarIconOnClose(val);
+				}
+				break;
+			case SETTING_ENFORCE_CLIPBOARD_IGNORE_FORMATS:
+				if (wcscmp(pNewValue->bstrVal, pOrigValue->bstrVal) != 0)
+				{
+					BOOL val = wcscmp(pNewValue->bstrVal, L"True") == 0;
+					CGetSetOptions::SetEnforceClipboardIgnoreFormats(val);
+				}
+				break;
 			}
 		}
 	}
@@ -1025,9 +1077,9 @@ void CAdvGeneral::OnSize(UINT nType, int cx, int cy)
 void CAdvGeneral::OnBnClickedBtCompactAndRepair()
 {
 	auto msg = theApp.m_Language.GetString("CompactRepairWarning", "Warning this can take quite a long time and require up to double the hard drive space as your current database size, Continue?");
-	int ret = MessageBox(msg, _T("Ditto"), MB_YESNO);
+	int ret = MessageBox(msg, _T("Ditto"), MB_OKCANCEL);
 
-	if (ret == IDYES)
+	if (ret == IDOK)
 	{
 		CWaitCursor wait;
 
@@ -1169,13 +1221,13 @@ void CAdvGeneral::Search(bool fromSelection)
 							m_propertyGrid.EnsureVisible(pSubItem, TRUE);
 						}
 						
-						break;
+							break;
+						}
 					}
 				}
 			}
 		}
 	}
-}
 
 BOOL CAdvGeneral::PreTranslateMessage(MSG* pMsg)
 {
@@ -1195,4 +1247,62 @@ BOOL CAdvGeneral::PreTranslateMessage(MSG* pMsg)
 void CAdvGeneral::OnBnClickedButtonNextMatch()
 {
 	Search(true);	
+}
+
+void CAdvGeneral::OnBnClickedButtonCopyScripts2()
+{
+	CDimWnd dimmer(this);
+
+	CMoveToGroupDlg dlg(this, _T("Select group to reset clip order"));
+
+	const auto ret = dlg.DoModal();
+	if (ret == IDOK)
+	{
+		CWaitCursor wait;
+
+		const int groupID = dlg.GetSelectedGroup();
+
+		CString reOrderSql = R"(
+
+			WITH OrderedRows AS(
+				SELECT
+					rowid AS original_rowid,
+					ROW_NUMBER() OVER(ORDER BY {orderField} ASC) AS rn
+				FROM
+					Main
+				WHERE lParentID = {parentID}
+			)
+			--Update the main table using the CTE results
+			UPDATE 
+				Main
+			SET {orderField} = (
+					SELECT rn
+					FROM OrderedRows
+					WHERE OrderedRows.original_rowid = Main.rowid
+				)
+			WHERE lParentID = {parentID}
+		)";
+
+		if (groupID == -1)
+		{
+			reOrderSql.Replace(_T("{orderField}"), _T("clipOrder"));
+
+			//reorder all clip
+			reOrderSql.Replace(_T("WHERE lParentID = {parentID}"), _T(""));
+		}
+		else
+		{
+			reOrderSql.Replace(_T("{parentID}"), std::to_wstring(groupID).c_str());
+			reOrderSql.Replace(_T("{orderField}"), _T("clipGroupOrder"));
+		}
+
+		try
+		{
+			theApp.m_db.execDML(reOrderSql);
+		}
+		catch (CppSQLite3Exception& e)
+		{
+			MessageBox(e.errorMessage());
+		}
+	}
 }

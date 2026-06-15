@@ -5,7 +5,7 @@ on:
     branches:
       - master
     paths-ignore:
-      - '**/README.md'
+      - '**/*.md'
 
 env:
   SOLUTION_FILE_PATH: CP_Main_10.sln
@@ -31,38 +31,9 @@ jobs:
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v2
 
-      - name: Download zlib packages
+      - name: Restore NuGet packages
         working-directory: ${{env.GITHUB_WORKSPACE}}
-        shell: pwsh
-        run: |
-          $version = '1.2.11.8900'
-          $packagesDir = Join-Path $PWD 'packages'
-          $packageIds = @('zlib-msvc-x64', 'zlib-msvc-x86')
-
-          Add-Type -AssemblyName System.IO.Compression.FileSystem
-          New-Item -ItemType Directory -Path $packagesDir -Force | Out-Null
-
-          foreach ($packageId in $packageIds) {
-            $packageUrl = "https://www.nuget.org/api/v2/package/$packageId/$version"
-            $packageFile = Join-Path $env:RUNNER_TEMP "$packageId.$version.nupkg"
-            $extractDir = Join-Path $packagesDir "$packageId.$version"
-
-            Remove-Item $packageFile -Force -ErrorAction SilentlyContinue
-            Remove-Item $extractDir -Recurse -Force -ErrorAction SilentlyContinue
-
-            Invoke-WebRequest -Uri $packageUrl -OutFile $packageFile
-            [System.IO.Compression.ZipFile]::ExtractToDirectory($packageFile, $extractDir)
-          }
-
-      - name: Verify restored zlib package
-        shell: pwsh
-        run: |
-          $zlibLib = 'packages\zlib-msvc-x64.1.2.11.8900\build\native\lib_release\zlibstatic.lib'
-          if (!(Test-Path $zlibLib)) {
-            Write-Host 'Top-level packages directory contents:'
-            Get-ChildItem 'packages' -Force -ErrorAction SilentlyContinue | Select-Object FullName
-            throw "Missing restored zlib package file: $zlibLib"
-          }
+        run: nuget restore ${{env.SOLUTION_FILE_PATH}}
         
       - name: Build
         run: msbuild CP_Main_10.sln /p:Configuration=Release /p:Platform=x64
@@ -95,10 +66,9 @@ jobs:
           output-artifact-directory: '/Release64'      
                    
       - name: Installer
-        uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.7
         with:
           path: DittoSetup\DittoSetup_10.iss
-          options: /F"DittoSetup_${{env.VERSION_FILENAME}}" "/dbit64=1"
           
       - name: upload-unsigned-artifact
         id: upload-unsigned-artifact
@@ -165,7 +135,7 @@ jobs:
             (Get-Content 'DittoSetup\appx\appxmanifest.xml' -Raw).Replace("%version%", "${{env.VERSION_DOT_FILENAME}}") | Out-File 'DittoSetup\appx\appxmanifest.xml'  
             cd DittoSetup\appx
 
-            $env:Path += ";C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\x86"
+            $env:Path += ";C:\Program Files (x86)\Windows Kits\10\bin\10.0.26100.0\x86"
         
             makeappx.exe pack /f files.ini /p Ditto_${{env.VERSION_FILENAME}}.appx
             signtool.exe sign -f my.pfx -fd SHA256 -v Ditto_${{env.VERSION_FILENAME}}.appx
@@ -178,7 +148,7 @@ jobs:
           token: ${{secrets.GITHUB_TOKEN}}
           uploadPath: DittoSetup\output\
           tag: ${{env.VERSION_FILENAME}}
-          previous_tag: 3.24.246.0
+          previous_tag: 3.25.113.0
         run: |
              npm install ./DittoSetup/GitHubRelease
              node ./DittoSetup/GitHubRelease/index.js

@@ -37,14 +37,14 @@
     <ConfigurationType>Application</ConfigurationType>
     <UseOfMfc>Dynamic</UseOfMfc>
     <CharacterSet>Unicode</CharacterSet>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v145</PlatformToolset>
     <WholeProgramOptimization>false</WholeProgramOptimization>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseOfMfc>Dynamic</UseOfMfc>
     <CharacterSet>Unicode</CharacterSet>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v145</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -56,13 +56,13 @@
     <ConfigurationType>Application</ConfigurationType>
     <UseOfMfc>Dynamic</UseOfMfc>
     <CharacterSet>Unicode</CharacterSet>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v145</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseOfMfc>Dynamic</UseOfMfc>
     <CharacterSet>Unicode</CharacterSet>
-    <PlatformToolset>v143</PlatformToolset>
+    <PlatformToolset>v145</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -570,6 +570,7 @@
     <ClCompile Include="src\CopyThread.cpp" />
     <ClCompile Include="src\CP_Main.cpp" />
     <ClCompile Include="src\Crc32Dynamic.cpp" />
+    <ClCompile Include="src\CreateQRCodeImage.cpp" />
     <ClCompile Include="src\CustomFriendsHelper.cpp" />
     <ClCompile Include="src\DatabaseUtilities.cpp" />
     <ClCompile Include="src\DeleteClipData.cpp" />
@@ -581,6 +582,7 @@
     <ClCompile Include="src\DittoCopyBuffer.cpp" />
     <ClCompile Include="src\DittoDropTarget.cpp" />
     <ClCompile Include="src\DittoPopupWindow.cpp" />
+    <ClCompile Include="src\DittoRulerRichEditCtrl.cpp" />
     <ClCompile Include="src\DittoWindow.cpp" />
     <ClCompile Include="src\DPI.cpp" />
     <ClCompile Include="src\DrawHTML.C">
@@ -589,7 +591,9 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="src\EditFrameWnd.cpp" />
     <ClCompile Include="src\EditWithButton.cpp" />
+    <ClCompile Include="src\EditWnd.cpp" />
     <ClCompile Include="src\EventThread.cpp" />
     <ClCompile Include="src\ExternalWindowTracker.cpp" />
     <ClCompile Include="src\FileRecieve.cpp" />
@@ -621,6 +625,7 @@
     <ClCompile Include="src\Md5.cpp" />
     <ClCompile Include="src\MessagePumpThread.cpp" />
     <ClCompile Include="src\Misc.cpp" />
+    <ClCompile Include="src\ModernScrollBar.cpp" />
     <ClCompile Include="src\MoveToGroupDlg.cpp" />
     <ClCompile Include="src\MultiLanguage.cpp" />
     <ClCompile Include="src\MyDropTarget.cpp" />
@@ -648,6 +653,73 @@
     <ClCompile Include="src\QPasteWnd.cpp" />
     <ClCompile Include="src\QPasteWndThread.cpp" />
     <ClCompile Include="src\QRCodeViewer.cpp" />
+    <ClCompile Include="src\QRCode\bitstream.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="src\QRCode\mask.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="src\QRCode\mmask.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="src\QRCode\mqrspec.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="src\QRCode\qrenc.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="src\QRCode\qrencode.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="src\QRCode\QRGenerator.cpp" />
+    <ClCompile Include="src\QRCode\qrinput.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="src\QRCode\qrspec.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="src\QRCode\rscode.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="src\QRCode\rsecc.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="src\QRCode\split.c">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="src\QuickPaste.cpp" />
     <ClCompile Include="src\QuickPasteKeyboard.cpp" />
     <ClCompile Include="src\RecieveFile.cpp" />
@@ -655,6 +727,16 @@
     <ClCompile Include="src\RegExFilterHelper.cpp" />
     <ClCompile Include="src\RichEditCtrlEx.cpp" />
     <ClCompile Include="src\RichTextAggregator.cpp" />
+    <ClCompile Include="src\RulerRichEditCtrl\External\ColourPicker.cpp" />
+    <ClCompile Include="src\RulerRichEditCtrl\External\ColourPopup.cpp" />
+    <ClCompile Include="src\RulerRichEditCtrl\External\StdioFileEx.cpp" />
+    <ClCompile Include="src\RulerRichEditCtrl\FontComboBox.cpp" />
+    <ClCompile Include="src\RulerRichEditCtrl\RRECToolbar.cpp" />
+    <ClCompile Include="src\RulerRichEditCtrl\RulerRichEdit.cpp" />
+    <ClCompile Include="src\RulerRichEditCtrl\RulerRichEditCtrl.cpp" />
+    <ClCompile Include="src\RulerRichEditCtrl\SizeComboBox.cpp" />
+    <ClCompile Include="src\RulerRichEditCtrl\StdGrfx.cpp" />
+    <ClCompile Include="src\RulerRichEditCtrl\TextFile\TextFile.cpp" />
     <ClCompile Include="src\SaveAnimation.cpp" />
     <ClCompile Include="src\ScriptEditor.cpp" />
     <ClCompile Include="src\ScrollHelper.cpp" />
@@ -742,6 +824,7 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="resource.h" />
     <ClInclude Include="src\About.h" />
     <ClInclude Include="src\Accels.h" />
     <ClInclude Include="src\ActionEnums.h" />
@@ -771,6 +854,7 @@
     <ClInclude Include="src\CP_Main.h" />
     <ClInclude Include="src\CP_Main_i.h" />
     <ClInclude Include="src\Crc32Dynamic.h" />
+    <ClInclude Include="src\CreateQRCodeImage.h" />
     <ClInclude Include="src\CustomFriendsHelper.h" />
     <ClInclude Include="src\DatabaseUtilities.h" />
     <ClInclude Include="src\DeleteClipData.h" />
@@ -783,9 +867,11 @@
     <ClInclude Include="src\DittoCopyBuffer.h" />
     <ClInclude Include="src\DittoDropTarget.h" />
     <ClInclude Include="src\DittoPopupWindow.h" />
+    <ClInclude Include="src\DittoRulerRichEditCtrl.h" />
     <ClInclude Include="src\DittoWindow.h" />
     <ClInclude Include="src\DPI.h" />
     <ClInclude Include="src\DrawHTML.h" />
+    <ClInclude Include="src\EditFrameWnd.h" />
     <ClInclude Include="src\EditWithButton.h" />
     <ClInclude Include="src\EditWnd.h" />
     <ClInclude Include="src\EventThread.h" />
@@ -822,6 +908,7 @@
     <ClInclude Include="src\memdc.h" />
     <ClInclude Include="src\MessagePumpThread.h" />
     <ClInclude Include="src\Misc.h" />
+    <ClInclude Include="src\ModernScrollBar.h" />
     <ClInclude Include="src\MoveToGroupDlg.h" />
     <ClInclude Include="src\MultiLanguage.h" />
     <ClInclude Include="src\MyDropTarget.h" />
@@ -849,14 +936,36 @@
     <ClInclude Include="src\QPasteWnd.h" />
     <ClInclude Include="src\QPasteWndThread.h" />
     <ClInclude Include="src\QRCodeViewer.h" />
+    <ClInclude Include="src\QRCode\bitstream.h" />
+    <ClInclude Include="src\QRCode\config.h" />
+    <ClInclude Include="src\QRCode\mask.h" />
+    <ClInclude Include="src\QRCode\mmask.h" />
+    <ClInclude Include="src\QRCode\mqrspec.h" />
+    <ClInclude Include="src\QRCode\qrencode.h" />
+    <ClInclude Include="src\QRCode\qrencode_inner.h" />
+    <ClInclude Include="src\QRCode\qrinput.h" />
+    <ClInclude Include="src\QRCode\qrspec.h" />
+    <ClInclude Include="src\QRCode\rscode.h" />
+    <ClInclude Include="src\QRCode\rsecc.h" />
+    <ClInclude Include="src\QRCode\split.h" />
     <ClInclude Include="src\QuickPaste.h" />
     <ClInclude Include="src\QuickPasteKeyboard.h" />
     <ClInclude Include="src\RecieveFile.h" />
     <ClInclude Include="src\RecieveSocket.h" />
     <ClInclude Include="src\RegExFilterHelper.h" />
-    <ClInclude Include="src\Resource.h" />
     <ClInclude Include="src\RichEditCtrlEx.h" />
     <ClInclude Include="src\RichTextAggregator.h" />
+    <ClInclude Include="src\RulerRichEditCtrl\External\ColourPicker.h" />
+    <ClInclude Include="src\RulerRichEditCtrl\External\ColourPopup.h" />
+    <ClInclude Include="src\RulerRichEditCtrl\External\StdioFileEx.h" />
+    <ClInclude Include="src\RulerRichEditCtrl\FontComboBox.h" />
+    <ClInclude Include="src\RulerRichEditCtrl\resource.h" />
+    <ClInclude Include="src\RulerRichEditCtrl\RRECToolbar.h" />
+    <ClInclude Include="src\RulerRichEditCtrl\RulerRichEdit.h" />
+    <ClInclude Include="src\RulerRichEditCtrl\RulerRichEditCtrl.h" />
+    <ClInclude Include="src\RulerRichEditCtrl\SizeComboBox.h" />
+    <ClInclude Include="src\RulerRichEditCtrl\StdGrfx.h" />
+    <ClInclude Include="src\RulerRichEditCtrl\TextFile\TextFile.h" />
     <ClInclude Include="src\SaveAnimation.h" />
     <ClInclude Include="src\ScriptEditor.h" />
     <ClInclude Include="src\ScrollHelper.h" />
@@ -1104,6 +1213,15 @@
     </Midl>
   </ItemGroup>
   <ItemGroup>
+    <Image Include="res\bmp00004.bmp" />
+    <Image Include="res\bmp00005.bmp" />
+    <Image Include="res\bmp00006.bmp" />
+    <Image Include="res\bmp00007.bmp" />
+    <Image Include="res\bmp00008.bmp" />
+    <Image Include="res\bmp00009.bmp" />
+    <Image Include="res\bmp00010.bmp" />
+    <Image Include="res\bmp00011.bmp" />
+    <Image Include="res\bmp00012.bmp" />
     <Image Include="res\ChevronLeft_Black_36.png" />
     <Image Include="res\ChevronLeft_Black_40.png" />
     <Image Include="res\ChevronLeft_Black_44.png" />
@@ -1128,6 +1246,7 @@
     <Image Include="res\down_24.png" />
     <Image Include="res\down_28.png" />
     <Image Include="res\down_32.png" />
+    <Image Include="res\edit_wnd.bmp" />
     <Image Include="res\icon3.ico" />
     <Image Include="res\maximize_36.png" />
     <Image Include="res\maximize_40.png" />
@@ -1158,24 +1277,28 @@
     <Image Include="res\system_menu_72.png" />
     <Image Include="res\system_menu_78.png" />
     <Image Include="res\system_menu_84.png" />
+    <Image Include="src\RulerRichEditCtrl\toolbar.bmp" />
+    <Image Include="src\RulerRichEditCtrl\toolbar_.bmp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
+    <Import Project="packages\zlib-msvc-x86.1.2.11.8900\build\native\zlib-msvc-x86.targets" Condition="Exists('packages\zlib-msvc-x86.1.2.11.8900\build\native\zlib-msvc-x86.targets')" />
+    <Import Project="packages\zlib-msvc-x64.1.2.11.8900\build\native\zlib-msvc-x64.targets" Condition="Exists('packages\zlib-msvc-x64.1.2.11.8900\build\native\zlib-msvc-x64.targets')" />
+    <Import Project="packages\libpng-msvc-x64.1.6.33.8807\build\native\libpng-msvc-x64.targets" Condition="Exists('packages\libpng-msvc-x64.1.6.33.8807\build\native\libpng-msvc-x64.targets')" />
+    <Import Project="packages\libpng-msvc-x86.1.6.33.8807\build\native\libpng-msvc-x86.targets" Condition="Exists('packages\libpng-msvc-x86.1.6.33.8807\build\native\libpng-msvc-x86.targets')" />
   </ImportGroup>
   <ProjectExtensions>
     <VisualStudio>
       <UserProperties RESOURCE_FILE="CP_Main.rc" />
     </VisualStudio>
   </ProjectExtensions>
-  <Target Name="EnsureZlibPackageFiles" BeforeTargets="PrepareForBuild">
+  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
     <PropertyGroup>
       <ErrorText>This project references NuGet package(s) that are missing on this computer. Use NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105. The missing file is {0}.</ErrorText>
     </PropertyGroup>
-    <Error Condition="'$(Platform)'=='Win32' And !Exists('packages\zlib-msvc-x86.1.2.11.8900\build\native\include\zlib.h')" Text="$([System.String]::Format('$(ErrorText)', 'packages\zlib-msvc-x86.1.2.11.8900\build\native\include\zlib.h'))" />
-    <Error Condition="'$(Platform)'=='Win32' And '$(Configuration)'=='Debug' And !Exists('packages\zlib-msvc-x86.1.2.11.8900\build\native\lib_debug\zlibstaticd.lib')" Text="$([System.String]::Format('$(ErrorText)', 'packages\zlib-msvc-x86.1.2.11.8900\build\native\lib_debug\zlibstaticd.lib'))" />
-    <Error Condition="'$(Platform)'=='Win32' And '$(Configuration)'=='Release' And !Exists('packages\zlib-msvc-x86.1.2.11.8900\build\native\lib_release\zlibstatic.lib')" Text="$([System.String]::Format('$(ErrorText)', 'packages\zlib-msvc-x86.1.2.11.8900\build\native\lib_release\zlibstatic.lib'))" />
-    <Error Condition="'$(Platform)'=='x64' And !Exists('packages\zlib-msvc-x64.1.2.11.8900\build\native\include\zlib.h')" Text="$([System.String]::Format('$(ErrorText)', 'packages\zlib-msvc-x64.1.2.11.8900\build\native\include\zlib.h'))" />
-    <Error Condition="'$(Platform)'=='x64' And '$(Configuration)'=='Debug' And !Exists('packages\zlib-msvc-x64.1.2.11.8900\build\native\lib_debug\zlibstaticd.lib')" Text="$([System.String]::Format('$(ErrorText)', 'packages\zlib-msvc-x64.1.2.11.8900\build\native\lib_debug\zlibstaticd.lib'))" />
-    <Error Condition="'$(Platform)'=='x64' And '$(Configuration)'=='Release' And !Exists('packages\zlib-msvc-x64.1.2.11.8900\build\native\lib_release\zlibstatic.lib')" Text="$([System.String]::Format('$(ErrorText)', 'packages\zlib-msvc-x64.1.2.11.8900\build\native\lib_release\zlibstatic.lib'))" />
+    <Error Condition="!Exists('packages\zlib-msvc-x86.1.2.11.8900\build\native\zlib-msvc-x86.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\zlib-msvc-x86.1.2.11.8900\build\native\zlib-msvc-x86.targets'))" />
+    <Error Condition="!Exists('packages\zlib-msvc-x64.1.2.11.8900\build\native\zlib-msvc-x64.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\zlib-msvc-x64.1.2.11.8900\build\native\zlib-msvc-x64.targets'))" />
+    <Error Condition="!Exists('packages\libpng-msvc-x64.1.6.33.8807\build\native\libpng-msvc-x64.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\libpng-msvc-x64.1.6.33.8807\build\native\libpng-msvc-x64.targets'))" />
+    <Error Condition="!Exists('packages\libpng-msvc-x86.1.6.33.8807\build\native\libpng-msvc-x86.targets')" Text="$([System.String]::Format('$(ErrorText)', 'packages\libpng-msvc-x86.1.6.33.8807\build\native\libpng-msvc-x86.targets'))" />
   </Target>
 </Project>

@@ -370,6 +370,9 @@ void CQuickPaste::ShowQPasteWnd(CWnd *pParent, bool bAtPrevPos, bool bFromKeyboa
 
 	m_pwndPaste->SetKeyModiferState(bFromKeyboard);
 
+	// Refresh scrollbar colors to match current theme
+	m_pwndPaste->RefreshScrollBarColors();
+	
 	m_pwndPaste->SetForegroundWindow();
 
 	if (::IsWindow(m_pwndPaste->m_search.GetSafeHwnd()))

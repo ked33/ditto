@@ -4,7 +4,7 @@
 #error include 'stdafx.h' before including this file for PCH
 #endif
 
-#include "resource.h"       // main symbols
+#include "../resource.h"       // main symbols
 #include "Clip.h"
 #include "DatabaseUtilities.h"
 #include "Misc.h"
@@ -164,6 +164,8 @@ public:
 	long	m_lLastGoodIndexForNextworkPassword;
 
 	CLIPFORMAT m_cfIgnoreClipboard; // used by CClip::LoadFromClipboard
+	CLIPFORMAT m_excludeClipboardContentFromMonitorProcessing;
+	CLIPFORMAT m_canIncludeInClipboardHistory;
 	CLIPFORMAT m_cfDelaySavingData;
 	CLIPFORMAT m_PingFormat;
 	CLIPFORMAT m_HTML_Format;

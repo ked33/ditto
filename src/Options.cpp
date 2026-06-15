@@ -31,6 +31,7 @@ BOOL CGetSetOptions::m_bAllowDuplicates;
 BOOL CGetSetOptions::m_bUpdateTimeOnPaste;
 BOOL CGetSetOptions::m_bSaveMultiPaste;
 BOOL CGetSetOptions::m_bShowPersistent;
+BOOL CGetSetOptions::m_bHideDittoOnPaste;
 long CGetSetOptions::m_bDescTextSize;
 BOOL CGetSetOptions::m_bDescShowLeadingWhiteSpace;
 BOOL CGetSetOptions::m_bAllwaysShowDescription;
@@ -71,6 +72,7 @@ CString CGetSetOptions::m_csIniFileName;
 __int64 CGetSetOptions::nLastDbWriteTime = 0;
 CTheme CGetSetOptions::m_Theme;
 BOOL CGetSetOptions::m_showScrollBar = false;
+BOOL CGetSetOptions::m_useModernScrollBar = TRUE;
 BOOL CGetSetOptions::m_bShowAlwaysOnTopWarning = TRUE;
 CRegExFilterHelper CGetSetOptions::m_regexHelper;
 CString CGetSetOptions::m_ignoreAnnoyingCFDIB = "";
@@ -90,6 +92,8 @@ BOOL CGetSetOptions::m_refreshViewAfterPasting = TRUE;
 BOOL CGetSetOptions::m_supportAllTypes = FALSE;
 int CGetSetOptions::m_clipEditSaveDelayAfterLoadSeconds = 3;
 int CGetSetOptions::m_clipEditSaveDelayAfterSaveSeconds = 3;
+BOOL CGetSetOptions::m_bDoNotHideOnDeactivate = FALSE;
+BOOL CGetSetOptions::m_enforceClipboardIgnoreFormats = TRUE;
 
 
 CGetSetOptions::CGetSetOptions()
@@ -255,6 +259,7 @@ void CGetSetOptions::LoadSettings()
 	m_bUpdateTimeOnPaste = GetUpdateTimeOnPaste();
 	m_bSaveMultiPaste = GetSaveMultiPaste();
 	m_bShowPersistent = GetShowPersistent();
+	m_bHideDittoOnPaste = GetHideDittoOnPaste();
 	m_bDescTextSize = GetDescTextSize();
 	m_bDescShowLeadingWhiteSpace = GetDescShowLeadingWhiteSpace();
 	m_bAllwaysShowDescription = GetAllwaysShowDescription();
@@ -284,6 +289,7 @@ void CGetSetOptions::LoadSettings()
 	m_outputDebugStringLogging = GetEnableOutputDebugStringLogging();
 	m_bEnsureConnectToClipboard = GetEnsureConnectToClipboard();
 	m_showScrollBar = GetShowScrollBar();
+	m_useModernScrollBar = GetUseModernScrollBar();
 	m_bShowAlwaysOnTopWarning = GetShowAlwaysOnTopWarning();
 	m_ignoreAnnoyingCFDIB = GetIgnoreAnnoyingCFDIB();
 	m_doubleKeyStrokeTimeout = GetDoubleKeyStrokeTimeout();
@@ -294,6 +300,8 @@ void CGetSetOptions::LoadSettings()
 	m_maintainSearchView = GetMaintainSearchView();
 	m_clipEditSaveDelayAfterLoadSeconds = GetClipEditSaveDelayAfterLoadSeconds();
 	m_clipEditSaveDelayAfterSaveSeconds = GetClipEditSaveDelayAfterSaveSeconds();
+	m_bDoNotHideOnDeactivate = GetDoNotHideOnDeactivate();
+	m_enforceClipboardIgnoreFormats = GetEnforceClipboardIgnoreFormats();
 
 	GetExtraNetworkPassword(true);
 
@@ -1259,6 +1267,16 @@ void CGetSetOptions::SetShowPersistent(BOOL bVal)
 BOOL CGetSetOptions::GetShowPersistent()			
 {	
 	return GetProfileLong("ShowPersistent", 0); 
+}
+
+void CGetSetOptions::SetHideDittoOnPaste(BOOL bVal)	
+{	
+	SetProfileLong("HideDittoOnPaste", bVal); 
+	m_bHideDittoOnPaste = bVal; 
+}
+BOOL CGetSetOptions::GetHideDittoOnPaste()			
+{	
+	return GetProfileLong("HideDittoOnPaste", 1); 
 }
 
 void CGetSetOptions::SetShowTextForFirstTenHotKeys(BOOL bVal)	
@@ -2285,6 +2303,17 @@ BOOL CGetSetOptions::GetShowScrollBar()
 	return GetProfileLong(_T("ShowScrollBar"), 0);
 }
 
+void CGetSetOptions::SetUseModernScrollBar(BOOL val)
+{
+	m_useModernScrollBar = val;
+	SetProfileLong(_T("UseModernScrollBar"), val);
+}
+
+BOOL CGetSetOptions::GetUseModernScrollBar()
+{
+	return GetProfileLong(_T("UseModernScrollBar"), TRUE);
+}
+
 void CGetSetOptions::SetPasteAsAdmin(BOOL val)
 {
 	SetProfileLong(_T("PasteAsAdmin"), val);
@@ -2361,6 +2390,16 @@ BOOL CGetSetOptions::GetShowInTaskBar()
 	return GetProfileLong(_T("ShowInTaskBar"), FALSE);
 }
 
+void CGetSetOptions::SetHideTaskbarIconOnClose(BOOL val)
+{
+	SetProfileLong(_T("HideTaskbarIconOnClose"), val);
+}
+
+BOOL CGetSetOptions::GetHideTaskbarIconOnClose()
+{
+	return GetProfileLong(_T("HideTaskbarIconOnClose"), TRUE);
+}
+
 void CGetSetOptions::SetDiffApp(CString val)
 {
 	SetProfileString(_T("DiffApp"), val);
@@ -2384,6 +2423,24 @@ int CGetSetOptions::GetQRCodeBorderPixels()
 CString	CGetSetOptions::GetTranslateUrl()
 {
 	return GetProfileString(_T("TranslateUrl"), _T("https://translate.google.com/?text=%s"));
+}
+
+CString	CGetSetOptions::GetWebSearchUrl()
+{
+	CString default = _T("https://www.google.com/search?q=%s");
+	CString val = GetProfileString(_T("WebSearchUrl"), default);
+
+	if (val == _T(""))
+	{
+		val = default;
+	}
+
+	return val;
+}
+
+void CGetSetOptions::SetWebSearchUrl(CString val)
+{
+	SetProfileString(_T("WebSearchUrl"), val);
 }
 
 void CGetSetOptions::SetNetworkReadTimeoutMS(int val)
@@ -2468,12 +2525,12 @@ int CGetSetOptions::GetWindowsResumeDelayReOpenDbMS()
 
 BOOL CGetSetOptions::GetShowMsgWndOnCopyToGroup()
 {
-	return GetProfileLong(_T("ShowMsgWndOnCopyToGroup"), TRUE);
+	return GetProfileLong("ShowMsgWndOnCopyToGroup", TRUE);
 }
 
 void CGetSetOptions::SetShowMsgWndOnCopyToGroup(BOOL val)
 {
-	SetProfileLong(_T("ShowMsgWndOnCopyToGroup"), val);
+	SetProfileLong("ShowMsgWndOnCopyToGroup", val);
 }
 
 int CGetSetOptions::GetActionShortCutA(DWORD action, int pos, CString refData)
@@ -3124,14 +3181,7 @@ BOOL CGetSetOptions::SetQRCodeUrl(CString path)
 
 CString CGetSetOptions::GetQRCodeUrl()
 {
-	auto defaultUrl = _T("https://zxing.org/w/chart?cht=qr&chs=500x500&chl=");
-	auto url = GetProfileString("QRCodeUrl", defaultUrl);
-	if (url == _T(""))
-	{
-		url = defaultUrl;
-	}
-
-	return url;
+	return GetProfileString("QRCodeUrl", _T(""));
 }
 
 void CGetSetOptions::SetAppendRemoveComputerNameAndIPToDescription(BOOL val)
@@ -3174,4 +3224,65 @@ void CGetSetOptions::SetClipEditSaveDelayAfterSaveSeconds(int val)
 BOOL CGetSetOptions::GetClipEditSaveDelayAfterSaveSeconds()
 {
 	return GetProfileLong("ClipEditSaveDelayAfterSaveSeconds", 3);
+}
+
+BOOL CGetSetOptions::SetEditWndSize(CSize size)
+{
+	BOOL bRet = SetResolutionProfileLong("EditWndCX", size.cx);
+	bRet = SetResolutionProfileLong("EditWndCY", size.cy);
+
+	return bRet;
+}
+
+void CGetSetOptions::GetEditWndSize(CSize& size)
+{
+	size.cx = GetResolutionProfileLong("EditWndCX", 600);
+	size.cy = GetResolutionProfileLong("EditWndCY", 600);
+	if (size.cx <= 0 && size.cy <= 0)
+	{
+		size.cx = 600;
+		size.cy = 600;
+	}
+}
+
+BOOL CGetSetOptions::SetEditWndPoint(CPoint point)
+{
+	BOOL bRet = SetResolutionProfileLong("EditWndX", point.x);
+	bRet = SetResolutionProfileLong("EditWndY", point.y);
+
+	return bRet;
+}
+
+void CGetSetOptions::GetEditWndPoint(CPoint& point)
+{
+	point.x = GetResolutionProfileLong("EditWndX", 100);
+	point.y = GetResolutionProfileLong("EditWndY", 100);
+
+	if (point.x <= 0 && point.y <= 0)
+	{
+		point.x = 100;
+		point.y = 100;
+	}
+}
+
+void CGetSetOptions::SetDoNotHideOnDeactivate(BOOL val)
+{
+	SetProfileLong("DoNotHideOnDeactivate", val);
+	m_bDoNotHideOnDeactivate = val;
+}
+
+BOOL CGetSetOptions::GetDoNotHideOnDeactivate()
+{
+	return GetProfileLong("DoNotHideOnDeactivate", FALSE);
+}
+
+void CGetSetOptions::SetEnforceClipboardIgnoreFormats(BOOL val)
+{
+	SetProfileLong("EnforceClipboardIgnoreFormats", val);
+	m_enforceClipboardIgnoreFormats = val;
+}
+
+BOOL CGetSetOptions::GetEnforceClipboardIgnoreFormats()
+{
+	return GetProfileLong("EnforceClipboardIgnoreFormats", TRUE);
 }

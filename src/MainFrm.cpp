@@ -49,6 +49,7 @@ BEGIN_MESSAGE_MAP(CMainFrame, CFrameWnd)
 	ON_MESSAGE(WM_SEND_RECIEVE_ERROR, OnErrorOnSendRecieve)
 	ON_MESSAGE(WM_SHOW_ERROR_MSG, OnErrorMsg)
 	ON_COMMAND(ID_FIRST_IMPORT, OnFirstImport)
+	ON_MESSAGE(WM_EDIT_WND_CLOSING, OnEditWndClose)
 	ON_WM_DESTROY()
 	ON_COMMAND(ID_FIRST_NEWCLIP, OnFirstNewclip)
 	ON_MESSAGE(WM_SET_CONNECTED, OnSetConnected)
@@ -95,6 +96,7 @@ END_MESSAGE_MAP()
 
 CMainFrame::CMainFrame()
 {
+	m_pEditFrameWnd = NULL;
     m_keyStateModifiers = 0;
     m_startKeyStateTime = 0;
     m_bMovedSelectionMoveKeyState = false;
@@ -725,10 +727,13 @@ void CMainFrame::OnTimer(UINT_PTR nIDEvent)
     switch(nIDEvent)
     {
         case HIDE_ICON_TIMER:
-            {
-				m_trayIcon.Hide();
-                KillTimer(nIDEvent);
-            }
+        	{
+            	KillTimer(nIDEvent);
+            	if (!CGetSetOptions::GetShowIconInSysTray())
+            	{
+                	m_trayIcon.Hide();
+            	}
+        }
 			break;
 
         case CLOSE_WINDOW_TIMER:
@@ -952,6 +957,14 @@ BOOL CMainFrame::PreTranslateMessage(MSG *pMsg)
 
 void CMainFrame::OnClose()
 {
+	if (m_pEditFrameWnd)
+	{
+		if (m_pEditFrameWnd->CloseAll() == false)
+		{
+			return;
+		}
+	}
+
     CloseAllOpenDialogs();
 
     Log(_T("OnClose - before stop MainFrm thread"));
@@ -973,6 +986,8 @@ bool CMainFrame::CloseAllOpenDialogs()
     GetWindowThreadProcessId(this->m_hWnd, &dwordProcessId);
     ASSERT(dwordProcessId);
 
+	CArray<CWnd*, CWnd*> openDialogs;
+
     CWnd *pTempWnd = GetDesktopWindow()->GetWindow(GW_CHILD);
     while((pTempWnd = pTempWnd->GetWindow(GW_HWNDNEXT)) != NULL)
     {
@@ -990,11 +1005,16 @@ bool CMainFrame::CloseAllOpenDialogs()
             // #32770 is class name for dialogs so don't process the message if it is a dialog
             if(STRCMP(szTemp, _T("#32770")) == 0)
             {
-                pTempWnd->SendMessage(WM_CLOSE, 0, 0);
+				openDialogs.Add(pTempWnd);                
                 bRet = true;
             }
         }
     }
+
+	for (int i = 0; i < openDialogs.GetCount(); i++)
+	{
+		openDialogs[i]->PostMessage(WM_CLOSE, 0, 0);
+	}
 
     MSG msg;
     while(PeekMessage(&msg, NULL, NULL, NULL, PM_REMOVE))
@@ -1130,6 +1150,45 @@ void CMainFrame::OnFirstHelp()
     CHyperLink::GotoURL(_T("https://github.com/sabrogden/Ditto/wiki"), SW_SHOW);
 }
 
+void CMainFrame::ShowEditWnd(CClipIDs& Ids)
+{
+	CWaitCursor wait;
+
+	bool bCreatedWindow = false;
+	if (m_pEditFrameWnd == NULL)
+	{
+		m_pEditFrameWnd = new CEditFrameWnd;
+		m_pEditFrameWnd->LoadFrame(IDR_MAINFRAME);
+		bCreatedWindow = true;
+	}
+	if (m_pEditFrameWnd)
+	{
+		m_pEditFrameWnd->EditIds(Ids);
+		m_pEditFrameWnd->SetNotifyWnd(m_hWnd);
+
+		if (bCreatedWindow)
+		{
+			CSize sz;
+			CPoint pt;
+			CGetSetOptions::GetEditWndSize(sz);
+			CGetSetOptions::GetEditWndPoint(pt);
+			CRect cr(pt, sz);
+			EnsureWindowVisible(&cr);
+			m_pEditFrameWnd->MoveWindow(cr);
+		}
+
+		m_pEditFrameWnd->ShowWindow(SW_SHOW);
+		m_pEditFrameWnd->SetForegroundWindow();
+		m_pEditFrameWnd->SetFocus();
+	}
+}
+
+LRESULT CMainFrame::OnEditWndClose(WPARAM wParam, LPARAM lParam)
+{
+	m_pEditFrameWnd = NULL;
+	return TRUE;
+}
+
 void CMainFrame::ShowErrorMessage(CString csTitle, CString csMessage)
 {
     Log(StrF(_T("ShowErrorMessage %s - %s"), csTitle, csMessage));
@@ -1172,6 +1231,11 @@ LRESULT CMainFrame::OnOpenCloseWindow(WPARAM wParam, LPARAM lParam)
 
 void CMainFrame::OnDestroy()
 {
+	if (m_pEditFrameWnd)
+	{
+		m_pEditFrameWnd->DestroyWindow();
+	}
+
     CFrameWnd::OnDestroy();
 }
 
@@ -1499,8 +1563,8 @@ LRESULT CMainFrame::OnRestoreDb(WPARAM wParam, LPARAM lParam)
 
 void CMainFrame::OnFirstDeleteallnonusedclips()
 {
-	int nRet = MessageBox(theApp.m_Language.GetString("Delete_All_Non_Used_Clips", "Delete all clips that are not groups, in groups, marked as never auto delete, has a shortcut key or marked as sticky.\r\n\r\nThis cannot be undone."), _T("Ditto"), MB_YESNO | MB_TOPMOST);
-	if (nRet == IDNO)
+	int nRet = MessageBox(theApp.m_Language.GetString("Delete_All_Non_Used_Clips", "Delete all clips that are not groups, in groups, marked as never auto delete, has a shortcut key or marked as sticky.\r\n\r\nThis cannot be undone."), _T("Ditto"), MB_OKCANCEL | MB_TOPMOST);
+	if (nRet != IDOK)
 	{
 		return;
 	}

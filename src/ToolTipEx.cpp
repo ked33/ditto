@@ -140,11 +140,11 @@ BOOL CToolTipEx::Create(CWnd *pParentWnd)
 
 	m_clipDataStatic.SetFont(&m_clipDataFont);
 	m_clipDataStatic.SetBkColor(CGetSetOptions::m_Theme.DescriptionWindowBG());
-	m_clipDataStatic.SetTextColor(RGB(80, 80, 80));
+	m_clipDataStatic.SetTextColor(CGetSetOptions::m_Theme.DescriptionWindowText());
 
 	m_folderPathStatic.SetFont(&m_clipDataFont);
 	m_folderPathStatic.SetBkColor(CGetSetOptions::m_Theme.DescriptionWindowBG());
-	m_folderPathStatic.SetTextColor(RGB(80, 80, 80));
+	m_folderPathStatic.SetTextColor(CGetSetOptions::m_Theme.DescriptionWindowText());
 	
 	m_saveWindowLockout = false;
 
@@ -1182,7 +1182,7 @@ void CToolTipEx::OnOptions()
 
 		GetCursorPos(&pp);
 
-		//theApp.m_Language.UpdateRightClickMenu(cmSubMenu);
+		theApp.m_Language.UpdateRightClickMenu(cmSubMenu);
 
 		if(CGetSetOptions::GetRememberDescPos())
 			cmSubMenu->CheckMenuItem(ID_FIRST_REMEMBERWINDOWPOSITION, MF_CHECKED);

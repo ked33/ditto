@@ -44,6 +44,7 @@
 #define NM_MOVE_TO_GROUP			WM_USER+0x128
 #define NM_FOCUS_ON_SEARCH			WM_USER+0x129
 #define NM_COPY_CLIP				WM_USER+0x130
+#define NM_UPDATE_SCROLLBAR			WM_USER+0x131
 
 
 
@@ -173,6 +174,7 @@ protected:
 	bool IsHexString(const CString& str);
     COLORREF HslToRgb(double h, double s, double l);
 		
+	void DrawCheckerboard(CDC* pDC, CRect rect);
 	WCHAR *m_pwchTip;
 	TCHAR *m_pchTip;
 	HFONT m_SmallFont;

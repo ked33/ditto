@@ -210,7 +210,11 @@ void CCopyProperties::LoadDataFromCClip(CClip &Clip)
 		pCF = &Clip.m_Formats.GetData()[i];
 		if(pCF)
 		{
-			cs.Format(_T("%s, %d"), GetFormatName(pCF->m_cfType), GlobalSize(pCF->m_hgData));
+			const int MAX_SIZE_BUFFER = 255;
+			TCHAR size[MAX_SIZE_BUFFER];
+			StrFormatByteSize(GlobalSize(pCF->m_hgData), size, MAX_SIZE_BUFFER);
+
+			cs.Format(_T("%s, %s"), GetFormatName(pCF->m_cfType), size);
 			int nIndex = m_lCopyData.AddString(cs);
 			
 			if(m_lCopyID == -1 && pCF->m_dataId == -1)
@@ -322,7 +326,7 @@ void CCopyProperties::OnOK()
 
 				if(CheckGlobalHotKey(clip) == FALSE)
 				{
-					if(MessageBox(_T("Error registering global hot key\n\nContinue?"), _T(""), MB_YESNO|MB_ICONWARNING) == IDNO)
+					if(MessageBox(_T("Error registering global hot key\n\nContinue?"), _T(""), MB_OKCANCEL |MB_ICONWARNING) != IDOK)
 					{
 						return;
 					}
@@ -330,7 +334,7 @@ void CCopyProperties::OnOK()
 
 				if(CheckMoveToGroupGlobalHotKey(clip) == FALSE)
 				{
-					if(MessageBox(_T("Error registering global move to group hot key\n\nContinue?"), _T(""), MB_YESNO|MB_ICONWARNING) == IDNO)
+					if(MessageBox(_T("Error registering global move to group hot key\n\nContinue?"), _T(""), MB_OKCANCEL |MB_ICONWARNING) != IDOK)
 					{
 						return;
 					}

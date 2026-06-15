@@ -314,6 +314,9 @@ CString ActionEnums::EnumDescription(ActionEnumValues value)
 	case PASTE_TRIM_WHITE_SPACE:
 		val = "Paste, Trim White Space";
 		break;
+	case PASTE_POSIXIFY_PATHS:
+		val = "Paste, Posixify Paths";
+		break;
 	case TRANSPARENCY_NONE:
 		val = "Set Transparency None";
 		break;
@@ -394,6 +397,48 @@ CString ActionEnums::EnumDescription(ActionEnumValues value)
 		break;
 	case ASCII_TEXT_ONLY:
 		val = "Paste ASCII Text Only";
+		break;
+	case PASTE_POSITION_1_PLAIN_TEXT:
+		val = "Paste Position 1 Plain Text Only";
+		break;
+	case PASTE_POSITION_2_PLAIN_TEXT:
+		val = "Paste Position 2 Plain Text Only";
+		break;
+	case PASTE_POSITION_3_PLAIN_TEXT:
+		val = "Paste Position 3 Plain Text Only";
+		break;
+	case PASTE_POSITION_4_PLAIN_TEXT:
+		val = "Paste Position 4 Plain Text Only";
+		break;
+	case PASTE_POSITION_5_PLAIN_TEXT:
+		val = "Paste Position 5 Plain Text Only";
+		break;
+	case PASTE_POSITION_6_PLAIN_TEXT:
+		val = "Paste Position 6 Plain Text Only";
+		break;
+	case PASTE_POSITION_7_PLAIN_TEXT:
+		val = "Paste Position 7 Plain Text Only";
+		break;
+	case PASTE_POSITION_8_PLAIN_TEXT:
+		val = "Paste Position 8 Plain Text Only";
+		break;
+	case PASTE_POSITION_9_PLAIN_TEXT:
+		val = "Paste Position 9 Plain Text Only";
+		break;
+	case PASTE_POSITION_10_PLAIN_TEXT:
+		val = "Paste Position 10 Plain Text Only";
+		break;
+	case EXPORT_TO_WEB_SEARCH:
+		val = "Export To Web Search";
+		break;
+	case GENERATE_GUID:
+		val = "Generate GUID";
+		break;
+	case PASTE_AS_IMAGE:
+		val = "Paste as Image";
+		break;
+	case SHOW_STARRED_CLIPS:
+		val = "Show Starred Clips";
 		break;
 	}
 

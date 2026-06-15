@@ -361,12 +361,22 @@ int CClip::LoadFromClipboard(CClipTypes* pClipTypes, bool checkClipboardIgnore, 
 
 	// m_Formats should be empty when this is called.
 	ASSERT(m_Formats.GetSize() == 0);
-	
+
 	// If the data is supposed to be private, then return
-	if(::IsClipboardFormatAvailable(theApp.m_cfIgnoreClipboard))
+	if (::IsClipboardFormatAvailable(theApp.m_cfIgnoreClipboard))
 	{
 		Log(_T("Clipboard ignore type is on the clipboard, skipping this clipboard change"));
 		return FALSE;
+	}
+	
+	if (CGetSetOptions::m_enforceClipboardIgnoreFormats)
+	{
+		//https://learn.microsoft.com/en-us/windows/win32/dataxchg/clipboard-formats
+		if (::IsClipboardFormatAvailable(theApp.m_excludeClipboardContentFromMonitorProcessing))
+		{
+			Log(_T("ExcludeClipboardContentFromMonitorProcessing type is on the clipboard, skipping this clipboard change"));
+			return FALSE;
+		}
 	}
 
 	//If we are saving a multi paste then delay us connecting to the clipboard
@@ -376,7 +386,7 @@ int CClip::LoadFromClipboard(CClipTypes* pClipTypes, bool checkClipboardIgnore, 
 		Log(_T("Delay clipboard type is on the clipboard, delaying 1500 ms to allow ctrl-v to work"));
 		Sleep(1500);
 	}
-		
+
 	//Attach to the clipboard
 	if(!oleData.AttachClipboard())
 	{
@@ -386,8 +396,37 @@ int CClip::LoadFromClipboard(CClipTypes* pClipTypes, bool checkClipboardIgnore, 
 	}
 	
 	oleData.EnsureClipboardObject();
-	
-	
+
+	//https://learn.microsoft.com/en-us/windows/win32/dataxchg/clipboard-formats
+	if (CGetSetOptions::m_enforceClipboardIgnoreFormats &&
+		oleData.IsDataAvailable(theApp.m_canIncludeInClipboardHistory))
+	{
+		HGLOBAL includeInHistory = oleData.GetGlobalData(theApp.m_canIncludeInClipboardHistory);
+		if (includeInHistory != nullptr)
+		{
+			bool doReturn = false;
+
+			DWORD* data = static_cast<DWORD*>(GlobalLock(includeInHistory));
+			if (data != nullptr)
+			{			
+				if(*data == 0)
+				{
+					Log(_T("CanIncludeInClipboardHistory is 0, skipping this clipboard change"));
+					doReturn = true;
+				}
+
+				GlobalUnlock(includeInHistory);				
+			}
+
+			GlobalFree(includeInHistory);
+			if (doReturn)
+			{
+				oleData.Release();
+				return FALSE;
+			}
+		}
+	}
+		
 	m_Desc = "[Ditto Error] BAD DESCRIPTION";
 	
 	// Get Description String
@@ -1594,7 +1633,7 @@ HGLOBAL CClip::LoadFormat(int id, UINT cfType)
 	return hGlobal;
 }
 
-bool CClip::LoadFormats(int id, bool bOnlyLoad_CF_TEXT, bool includeRichTextForTextOnly)
+bool CClip::LoadFormats(int id, bool bOnlyLoad_CF_TEXT, bool includeRichTextForTextOnly, int dataId)
 {
 	DWORD startTick = GetTickCount();
 	CClipFormat cf;
@@ -1624,9 +1663,17 @@ bool CClip::LoadFormats(int id, bool bOnlyLoad_CF_TEXT, bool includeRichTextForT
 			}
 		}
 
+		CString dataIdFilter = _T("");
+		if (dataId >= 0)
+		{
+			dataIdFilter.Format(_T("AND lID = %d "), dataId);
+
+
+		}
+
 		csSQL.Format(
 			_T("SELECT lID, lParentID, strClipBoardFormat, ooData FROM Data ")
-			_T("WHERE %s lParentID = %d ORDER BY Data.lID desc"), textFilter, id);
+			_T("WHERE %s lParentID = %d %s ORDER BY Data.lID desc"), textFilter, id, dataIdFilter);
 
 		CppSQLite3Query q = theApp.m_db.execQuery(csSQL);
 
@@ -2051,6 +2098,33 @@ Gdiplus::Bitmap *CClip::CreateGdiplusBitmap()
 		return dib->CreateGdiplusBitmap();
 
 	return nullptr;
+}
+
+bool CClip::SaveFromEditWnd(BOOL bUpdateDesc)
+{
+	bool bRet = false;
+
+	try
+	{
+		theApp.m_db.execDMLEx(_T("DELETE FROM Data WHERE lParentID = %d;"), m_id);
+
+		DWORD CRC = GenerateCRC();
+
+		AddToDataTable();
+
+		theApp.m_db.execDMLEx(_T("UPDATE Main SET CRC = %d WHERE lID = %d"), CRC, m_id);
+
+		if (bUpdateDesc)
+		{
+			m_Desc.Replace(_T("'"), _T("''"));
+			theApp.m_db.execDMLEx(_T("UPDATE Main SET mText = '%s' WHERE lID = %d"), m_Desc, m_id);
+		}
+
+		bRet = true;
+	}
+	CATCH_SQLITE_EXCEPTION
+
+		return bRet;
 }
 
 /*----------------------------------------------------------------------------*\
