@@ -66,6 +66,76 @@ static char THIS_FILE[] = __FILE__;
 #define THREAD_LOAD_ITEMS			4
 #define THREAD_LOAD_EXTRA_DATA		5
 
+namespace
+{
+	enum class SearchClipboardFormatFilter
+	{
+		None,
+		Image,
+		File
+	};
+
+	bool HasPrefixBoundary(const CString& text, int prefixLength)
+	{
+		return text.GetLength() == prefixLength ||
+			_istspace(text[prefixLength]) != 0;
+	}
+
+	SearchClipboardFormatFilter ExtractSearchClipboardFormatFilter(CString& search)
+	{
+		if (search.Left(5).CompareNoCase(_T("!!img")) == 0 &&
+			HasPrefixBoundary(search, 5))
+		{
+			search = search.Mid(5);
+			search.TrimLeft();
+			return SearchClipboardFormatFilter::Image;
+		}
+
+		if (search.Left(6).CompareNoCase(_T("!!file")) == 0 &&
+			HasPrefixBoundary(search, 6))
+		{
+			search = search.Mid(6);
+			search.TrimLeft();
+			return SearchClipboardFormatFilter::File;
+		}
+
+		return SearchClipboardFormatFilter::None;
+	}
+
+	CString GetSearchClipboardFormatFilterSql(SearchClipboardFormatFilter filter)
+	{
+		switch (filter)
+		{
+		case SearchClipboardFormatFilter::Image:
+			return _T("Main.lID IN (SELECT Data.lParentID FROM Data WHERE Data.strClipBoardFormat IN ('CF_DIB', 'PNG'))");
+		case SearchClipboardFormatFilter::File:
+			return _T("Main.lID IN (SELECT Data.lParentID FROM Data WHERE Data.strClipBoardFormat = 'CF_HDROP')");
+		default:
+			return _T("");
+		}
+	}
+
+	void AppendAndSearchFilter(CString& filter, const CString& condition)
+	{
+		if (condition.IsEmpty())
+		{
+			return;
+		}
+
+		if (filter.IsEmpty())
+		{
+			filter = condition;
+			return;
+		}
+
+		CString combined(_T("("));
+		combined += filter;
+		combined += _T(") AND ");
+		combined += condition;
+		filter = combined;
+	}
+}
+
 
 /////////////////////////////////////////////////////////////////////////////
 // CQPasteWnd
@@ -1481,10 +1551,30 @@ BOOL CQPasteWnd::FillList(CString csSQLSearch)
 
 	CString sqlSearch = "";
 
-	if (csSQLSearch == "")
+	CString originalSQLSearch(csSQLSearch);
+	SearchClipboardFormatFilter clipboardFormatFilter = ExtractSearchClipboardFormatFilter(csSQLSearch);
+	CString clipboardFormatFilterSql = GetSearchClipboardFormatFilterSql(clipboardFormatFilter);
+	if (clipboardFormatFilter != SearchClipboardFormatFilter::None)
+	{
+		m_lstHeader.SetSearchText(csSQLSearch);
+	}
+
+	if (csSQLSearch == "" && clipboardFormatFilterSql.IsEmpty())
 	{
 		m_strSQLSearch = "";
 		m_strSearch = "";
+	}
+	else if (csSQLSearch == "" && clipboardFormatFilterSql.IsEmpty() == FALSE)
+	{
+		strFilter = clipboardFormatFilterSql;
+		if (strParentFilter.IsEmpty() == FALSE)
+		{
+			strFilter += _T(" AND ");
+			strFilter += strParentFilter;
+		}
+
+		m_strSQLSearch = strFilter;
+		m_strSearch = originalSQLSearch;
 	}
 	else
 	{
@@ -1598,6 +1688,8 @@ BOOL CQPasteWnd::FillList(CString csSQLSearch)
 			searchFilter += _T(")");
 
 			strFilter.Format(_T("Main.lID IN (SELECT rowid FROM %s WHERE %s)"), searchSourceTable, searchFilter);
+
+			AppendAndSearchFilter(strFilter, clipboardFormatFilterSql);
 
 			if (strParentFilter.IsEmpty() == FALSE)
 			{
@@ -1715,6 +1807,8 @@ BOOL CQPasteWnd::FillList(CString csSQLSearch)
 			}
 
 			strFilter += _T(")");
+
+			AppendAndSearchFilter(strFilter, clipboardFormatFilterSql);
 
 			if (strParentFilter.IsEmpty() == FALSE)
 			{
