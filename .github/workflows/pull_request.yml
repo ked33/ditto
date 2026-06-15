@@ -19,9 +19,9 @@ jobs:
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v2
 
-      - name: Restore NuGet packages
-        working-directory: ${{env.GITHUB_WORKSPACE}}
-        run: nuget restore ${{env.SOLUTION_FILE_PATH}}
+      - name: Restore native NuGet packages
+        shell: pwsh
+        run: .\.github\scripts\Restore-NativePackages.ps1
 
       - name: Build 64bit
         run: msbuild CP_Main_10.sln /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=${{ env.CI_PLATFORM_TOOLSET }}
