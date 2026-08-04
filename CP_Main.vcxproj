@@ -612,6 +612,7 @@
     <ClCompile Include="src\GroupTree.cpp" />
     <ClCompile Include="src\HListBox.cpp" />
     <ClCompile Include="src\HotKeys.cpp" />
+    <ClCompile Include="src\LowLevelHotKeys.cpp" />
     <ClCompile Include="src\HTMLFormatAggregator.cpp" />
     <ClCompile Include="src\HyperLink.cpp" />
     <ClCompile Include="src\ICU_String.cpp" />
@@ -892,6 +893,7 @@
     <ClInclude Include="src\GroupTree.h" />
     <ClInclude Include="src\HListBox.h" />
     <ClInclude Include="src\HotKeys.h" />
+    <ClInclude Include="src\LowLevelHotKeys.h" />
     <ClInclude Include="src\HTMLFormatAggregator.h" />
     <ClInclude Include="src\httplib.h" />
     <ClInclude Include="src\HyperLink.h" />

@@ -4,6 +4,7 @@
 #include "Misc.h"
 #include "SendKeys.h"
 #include "Accels.h"
+#include "LowLevelHotKeys.h"
 
 CHotKeys g_HotKeys;
 
@@ -436,18 +437,76 @@ void CHotKeys::SaveAllKeys()
 	}
 }
 
+// Activate shortcuts (show QPaste) may use Win+letter combos that Windows reserves
+// (e.g. Win+C for Copilot). RegisterHotKey fails with ERROR_HOTKEY_ALREADY_REGISTERED;
+// fall back to WH_KEYBOARD_LL only for those activate keys that include MOD_WIN.
+static bool IsDittoActivateHotKey(CHotKey* pHotKey)
+{
+	if(pHotKey == NULL)
+		return false;
+
+	const CString& name = pHotKey->m_Name;
+	return name == _T("DittoHotKey")
+		|| name == _T("DittoHotKey2")
+		|| name == _T("DittoHotKey3");
+}
+
+static bool UseLowLevelHookFallback(CHotKey* pHotKey)
+{
+	if(!IsDittoActivateHotKey(pHotKey) || pHotKey->m_Key == 0)
+		return false;
+
+	// HOTKEYF_EXT is stored as the "Win" bit in our profile encoding.
+	return (CHotKey::GetModifier(HIBYTE(pHotKey->m_Key)) & MOD_WIN) != 0;
+}
+
 void CHotKeys::RegisterAll(bool bMsgOnError)
 {
+	// Rebuild LL fallback from scratch each register pass (options apply, startup, cancel).
+	g_LowLevelHotKeys.Stop();
+	g_LowLevelHotKeys.Clear();
+	g_LowLevelHotKeys.SetHwnd(m_hWnd);
+
 	CString str;
 	CHotKey* pHotKey;
 	INT_PTR count = GetSize();
 	for(int i = 0; i < count; i++)
 	{
 		pHotKey = ElementAt(i);
+		if(pHotKey == NULL)
+			continue;
+
 		if(!pHotKey->Register() && pHotKey->m_Key > 0)
 		{
-			str =  "Error Registering ";
-			str += pHotKey->GetName();
+			// Capture immediately; subsequent calls may overwrite LastError.
+			const DWORD registerError = ::GetLastError();
+
+			if(UseLowLevelHookFallback(pHotKey)
+				&& g_LowLevelHotKeys.Add(pHotKey->GetModifier(), LOBYTE(pHotKey->m_Key), pHotKey->m_Atom))
+			{
+				Log(StrF(_T("RegisterHotKey failed for %s (key=0x%X, error %u); using WH_KEYBOARD_LL fallback"),
+					pHotKey->GetName(), pHotKey->m_Key, registerError));
+			}
+			else
+			{
+				str = _T("Error Registering ");
+				str += pHotKey->GetName();
+				if(registerError != 0)
+				{
+					str += StrF(_T(" (error %u)"), registerError);
+				}
+				Log(str);
+				if(bMsgOnError)
+					AfxMessageBox(str);
+			}
+		}
+	}
+
+	if(g_LowLevelHotKeys.GetCount() > 0)
+	{
+		if(!g_LowLevelHotKeys.Start())
+		{
+			str = _T("Error installing keyboard hook for Win hotkey fallback");
 			Log(str);
 			if(bMsgOnError)
 				AfxMessageBox(str);
@@ -457,6 +516,15 @@ void CHotKeys::RegisterAll(bool bMsgOnError)
 
 void CHotKeys::UnregisterAll(bool bMsgOnError, bool bOnShowDitto)
 {
+	// Full unregister (options, shutdown): drop LL hook.
+	// Partial unregister on show-Ditto only releases keys marked m_bUnRegisterOnShowDitto;
+	// activate Win+* fallback must stay so Win+C can still toggle/hide the window.
+	if(!bOnShowDitto)
+	{
+		g_LowLevelHotKeys.Stop();
+		g_LowLevelHotKeys.Clear();
+	}
+
 	CString str;
 	CHotKey* pHotKey;
 	INT_PTR count = GetSize();
@@ -465,7 +533,7 @@ void CHotKeys::UnregisterAll(bool bMsgOnError, bool bOnShowDitto)
 		pHotKey = ElementAt(i);
 		if(!pHotKey->Unregister(bOnShowDitto))
 		{
-			str = "Error Unregistering ";
+			str = _T("Error Unregistering ");
 			str += pHotKey->GetName();
 			Log(str);
 			if(bMsgOnError)
