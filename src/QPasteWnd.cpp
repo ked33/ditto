@@ -23,6 +23,7 @@
 #include "Path.h"
 #include "ProcessPaste.h"
 #include "QPasteWnd.h"
+#include "ThemedPopupMenu.h"
 #include "SearchIndex.h"
 #include "SendMail.h"
 #include <algorithm>
@@ -7589,6 +7590,10 @@ void CQPasteWnd::OnSystemButton()
 
 		SetMenuChecks(cmSubMenu);
 
+		const auto& theme = CGetSetOptions::m_Theme;
+		PopupMenuColors colors = { theme.MainWindowBG(), theme.ListBoxEvenRowsText(),
+			theme.ListBoxSelectedBG(), theme.ListBoxSelectedText(), theme.Border() };
+		CThemedPopupMenu themedMenu(m_hWnd, cmSubMenu->GetSafeHmenu(), pp, colors);
 		cmSubMenu->TrackPopupMenu(TPM_LEFTALIGN | TPM_TOPALIGN | TPM_RIGHTBUTTON, pp.x, pp.y, this, NULL);
 	}
 }

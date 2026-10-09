@@ -382,6 +382,9 @@
     <ClCompile Include="src\Theme.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\ThemedPopupMenu.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
     <ClCompile Include="src\ToolTipEx.cpp">
       <Filter>src</Filter>
     </ClCompile>
@@ -911,6 +914,9 @@
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="src\Theme.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\ThemedPopupMenu.h">
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="src\ToolTipEx.h">

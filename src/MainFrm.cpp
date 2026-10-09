@@ -17,6 +17,7 @@
 #include "OptionsSheet.h"
 #include "DeleteClipData.h"
 #include "DatabaseUtilities.h"
+#include "ThemedPopupMenu.h"
 
 #ifdef _DEBUG
     #define new DEBUG_NEW
@@ -206,6 +207,22 @@ LRESULT CMainFrame::OnTrayNotification(WPARAM wParam, LPARAM lParam)
 		SetTimer(DELAYED_SHOW_DITTO_TIMER, 100, NULL);		
 	}
 	
+	if (lParam == WM_RBUTTONUP || LOWORD(lParam) == WM_CONTEXTMENU)
+	{
+		CMenu* menu = m_trayIcon.GetMenu().GetSubMenu(0);
+		if (menu != NULL)
+		{
+			POINT position;
+			GetCursorPos(&position);
+			const auto& theme = CGetSetOptions::m_Theme;
+			PopupMenuColors colors = { theme.MainWindowBG(), theme.ListBoxEvenRowsText(),
+				theme.ListBoxSelectedBG(), theme.ListBoxSelectedText(), theme.Border() };
+			CThemedPopupMenu themedMenu(m_hWnd, menu->GetSafeHmenu(), position, colors);
+			m_trayIcon.OnTrayNotification(wParam, lParam);
+			return 0L;
+		}
+	}
+
 	m_trayIcon.OnTrayNotification(wParam, lParam);
 	return 0L;
 }

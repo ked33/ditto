@@ -783,6 +783,9 @@
     <ClCompile Include="src\SystemTray.cpp" />
     <ClCompile Include="src\TabCtrl.cpp" />
     <ClCompile Include="src\Theme.cpp" />
+    <ClCompile Include="src\ThemedPopupMenu.cpp">
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="src\TinyXml\tinystr.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">NotUsing</PrecompiledHeader>
@@ -992,6 +995,7 @@
     <ClInclude Include="src\SystemTray.h" />
     <ClInclude Include="src\TabCtrl.h" />
     <ClInclude Include="src\Theme.h" />
+    <ClInclude Include="src\ThemedPopupMenu.h" />
     <ClInclude Include="src\TinyXml\tinystr.h" />
     <ClInclude Include="src\TinyXml\tinyxml.h" />
     <ClInclude Include="src\ToolTipEx.h" />
