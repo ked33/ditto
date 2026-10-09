@@ -113,7 +113,7 @@
 		<Item English_Text = "Export to Google Translate" ID = "32900">导出到谷歌翻译</Item>	
 		
 		<Item English_Text = "Search Options" ID = "-1">搜索选项</Item>	
-		<Item English_Text = "Search Description" ID = "32873">搜索说明</Item>	
+		<Item English_Text = "Search Description" ID = "32873">搜索项目标题</Item>
 		<Item English_Text = "Search Full Text" ID = "32874">全文搜索</Item>	
 		<Item English_Text = "Search Quick Paste" ID = "32875">搜索快速粘贴</Item>	
 		<Item English_Text = "Contains Text Search" ID = "32876">搜索包含的文本</Item>	
@@ -163,6 +163,17 @@
 		<Item English_Text = "Paste as Image" ID = "33001">作为图片粘贴</Item>
 		<Item English_Text = "Export to Web Search" ID = "32997">导出到网页搜索</Item>
 		<Item English_Text = "Posixify/Paths" ID = "32999">转换为 POSIX 路径</Item>
+		<!-- Description window options -->
+		<Item English_Text = "Remember window position" ID = "32882">记住窗口位置</Item>
+		<Item English_Text = "Size window to content" ID = "32883">根据内容调整窗口大小</Item>
+		<Item English_Text = "Scale images to fit window" ID = "32884">缩放图片以适应窗口</Item>
+		<Item English_Text = "Hide description window on mouse clip selection" ID = "32926">鼠标选择剪贴项时隐藏说明窗口</Item>
+		<Item English_Text = "Wrap Text" ID = "32928">自动换行</Item>
+		<Item English_Text = "Always on top" ID = "32942">窗口置顶</Item>
+		<Item English_Text = "View as Text" ID = "32972">以文本查看</Item>
+		<Item English_Text = "View as RTF" ID = "32973">以富文本（RTF）查看</Item>
+		<Item English_Text = "View as HTML" ID = "32974">以网页（HTML）查看</Item>
+		<Item English_Text = "View as Image" ID = "32975">以图片查看</Item>
 	</Ditto_Right_Click_Menu>
 	<Ditto_Clip_Properties>
 		<Item English_Text = "Hot Key" ID = "2039">热键</Item>
@@ -607,6 +618,10 @@
 		<Item English_Text = "Clear Custom Send List" ID = "Clear Custom Send List">清空自定义发送列表</Item>
 		<Item English_Text = "Set Drag File Name" ID = "Set Drag File Name">设置拖拽文件名</Item>
 		<Item English_Text = "File Name" ID = "File Name">文件名</Item>
+		<!-- Description window -->
+		<Item English_Text = "Description Options" ID = "DescriptionOptionsTooltip">说明窗口选项</Item>
+		<Item English_Text = "Length:" ID = "DescriptionLength">长度：</Item>
+		<Item English_Text = "Words:" ID = "DescriptionWords">词数：</Item>
 	</Ditto_String_Table>
 	<Ditto_Options_Sheet>
 		<Item English_Text = "OK" ID = "1">确定</Item>

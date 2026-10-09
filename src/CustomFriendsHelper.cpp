@@ -83,15 +83,9 @@ void CCustomFriendsHelper::Save()
 
 void CCustomFriendsHelper::AddToMenu(CMenu *pMenu)
 {
-	bool addedItem = false;
 	int id = 0;
 	for (auto & element : m_list) 
 	{
-		if (addedItem == false)
-		{
-			addedItem = true;
-		}
-
 		CString cs;
 		if (element.m_desc != _T(""))
 		{
@@ -106,11 +100,6 @@ void CCustomFriendsHelper::AddToMenu(CMenu *pMenu)
 		id++;
 	}
 
-	if (addedItem)
-	{
-		pMenu->AppendMenu(MF_SEPARATOR);
-	}
-	
 	pMenu->AppendMenuW(MF_STRING, (CustomFriendStartId + PromptForCustom), theApp.m_Language.GetString("prompt_for_name", "Prompt For Name"));
 }
 

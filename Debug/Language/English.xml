@@ -619,6 +619,10 @@
 		<Item English_Text = "Clear Custom Send List" ID = "Clear Custom Send List"></Item>
 		<Item English_Text = "Set Drag File Name" ID = "Set Drag File Name"></Item>
 		<Item English_Text = "File Name" ID = "File Name"></Item>
+		<!-- Description window -->
+		<Item English_Text = "Description Options" ID = "DescriptionOptionsTooltip"></Item>
+		<Item English_Text = "Length:" ID = "DescriptionLength"></Item>
+		<Item English_Text = "Words:" ID = "DescriptionWords"></Item>
 	</Ditto_String_Table>
 	<Ditto_Options_Sheet>
 		<Item English_Text = "OK" ID = "1"></Item>

@@ -243,7 +243,10 @@ BOOL CToolTipEx::Show(CPoint point)
 	if (m_csText.GetLength())
 	{
 		int wordCount = WordCount(m_csText);
-		m_clipData = StrF(_T("%s | Length: %d | Words: %d"), m_originalClipData, m_csText.GetLength(), wordCount);
+		const CString lengthLabel = theApp.m_Language.GetString(_T("DescriptionLength"), _T("Length:"));
+		const CString wordsLabel = theApp.m_Language.GetString(_T("DescriptionWords"), _T("Words:"));
+		m_clipData = StrF(_T("%s | %s %d | %s %d"), m_originalClipData.GetString(),
+			lengthLabel.GetString(), m_csText.GetLength(), wordsLabel.GetString(), wordCount);
 	}
 
 	m_clipDataStatic.SetWindowText(m_clipData);
@@ -1433,7 +1436,7 @@ void CToolTipEx::OnFirstAlwaysontop()
 	m_showPersistant = !m_showPersistant;
 	if (m_showPersistant)
 	{
-		m_DittoWindow.m_customWindowTitle = _T("[Always on top]");
+		m_DittoWindow.m_customWindowTitle = theApp.m_Language.GetString(_T("top_window"), _T("[Always on top]"));
 		m_DittoWindow.m_useCustomWindowTitle = true;
 		::SetWindowPos(m_hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOSIZE | SWP_NOMOVE | SWP_SHOWWINDOW | SWP_NOACTIVATE);
 	}

@@ -477,7 +477,6 @@ BEGIN
             MENUITEM "Friend Thirteen",             32836
             MENUITEM "Friend Foreteen",             32837
             MENUITEM "Friend Fifteen",              32838
-            MENUITEM SEPARATOR
         END
         MENUITEM "View Full Description",       32793
         POPUP "Special Paste"
