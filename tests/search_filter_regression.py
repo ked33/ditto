@@ -1,7 +1,7 @@
 """Check production type-filter SQL against synthetic clips, never user data.
 
 Run with DITTO_ICU_EXTENSION pointing to the newly compiled ICU_Loader.dll.
-Without it, only the RTF SQL and source wiring checks run.
+Without it, only SQL paging, RTF, and source wiring checks run.
 """
 
 import json
@@ -98,6 +98,52 @@ class FilterWiringTests(unittest.TestCase):
             self.assertEqual(matching(db, rtf_filter()), [1, 4])
         finally:
             db.close()
+
+
+class LinkPagingTests(unittest.TestCase):
+    def test_pages_only_classify_candidates_up_to_requested_range(self):
+        # Count predicate work, not elapsed time: this must pass on slow CI too.
+        # The ASCII stand-ins measure query execution only; LinkFilterTests
+        # separately verify real ICU matching and clipboard decoding.
+        for ready in (False, True):
+            db = open_db()
+            calls = []
+
+            def count_match(_pattern, text):
+                calls.append(text)
+                return text.startswith("https://")
+
+            db.create_function("regexp", 2, count_match)
+            db.create_function("ditto_clipboard_text", 2, lambda blob, fmt:
+                               blob.decode("utf-16le" if fmt == "CF_UNICODETEXT" else "ascii").rstrip("\0"))
+            try:
+                for clip_id in range(1, 4001):
+                    # Include both Unicode and ANSI-only clips, plus groups.
+                    body = f"https://example.com/{clip_id}"
+                    add_clip(db, clip_id, body if clip_id % 2 else None,
+                             ansi=body, group=clip_id % 3)
+                db.executescript("""
+                    ALTER TABLE Main ADD stickyClipOrder REAL DEFAULT 0;
+                    ALTER TABLE Main ADD bIsGroup INTEGER DEFAULT 0;
+                    ALTER TABLE Main ADD clipOrder REAL DEFAULT 0;
+                    UPDATE Main SET clipOrder=lID;
+                    CREATE INDEX Main_TopLevel ON Main(stickyClipOrder DESC, bIsGroup ASC, clipOrder DESC);
+                    CREATE INDEX Main_InGroup2 ON Main(lParentID ASC, stickyClipOrder DESC, bIsGroup ASC, clipOrder DESC);
+                """)
+                for group in (None, 1):
+                    expected = [i for i in range(4000, 0, -1) if group is None or i % 3 == group]
+                    for offset in (0, 60, 600):
+                        calls.clear()
+                        sql = "SELECT Main.lID FROM Main WHERE " + link_filter(ready)
+                        if group is not None:
+                            sql += f" AND Main.lParentID = {group}"
+                        sql += " ORDER BY Main.stickyClipOrder DESC, Main.bIsGroup ASC, Main.clipOrder DESC"
+                        sql += f" LIMIT 30 OFFSET {offset}"
+                        with self.subTest(index_ready=ready, group=group, offset=offset):
+                            self.assertEqual([r[0] for r in db.execute(sql)], expected[offset:offset + 30])
+                            self.assertLessEqual(len(calls), 2 * (offset + 30))
+            finally:
+                db.close()
 
 
 @unittest.skipUnless(ICU_EXTENSION, "requires compiled ICU_Loader.dll")

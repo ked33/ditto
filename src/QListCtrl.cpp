@@ -1750,6 +1750,14 @@ bool CQListCtrl::ShowFullDescription(bool bFromAuto, bool fromNextPrev)
 	return true;
 }
 
+void CQListCtrl::RefreshToolTipTheme()
+{
+	if (VALID_TOOLTIP)
+	{
+		m_pToolTip->RefreshThemeColors();
+	}
+}
+
 void CQListCtrl::GetToolTipText(int nItem, CString& csText)
 {
 	CWnd* pParent = GetParent();

@@ -141,6 +141,7 @@ public:
 	bool IsToolTipShowPersistant();
 	void DoToolTipSearch();
 	void HideToolTip();
+	void RefreshToolTipTheme();
 
 	void SetLogFont(LOGFONT &font);
 

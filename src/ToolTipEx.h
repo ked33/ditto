@@ -55,6 +55,7 @@ public:
 
 	void DoSearch();
 	void MoveControls();
+	void RefreshThemeColors();
 
 	BOOL SetLogFont(LPLOGFONT lpLogFont, BOOL bRedraw /*=TRUE*/);
 
@@ -110,6 +111,8 @@ protected:
 protected:
 	CString GetFieldFromString(CString ref, int nIndex, TCHAR ch);	
 	BOOL IsCursorInToolTip();
+	void ApplyPlainTextTheme();
+	void ApplyHtmlTheme();
 	void HighlightSearchText();	
 	void ApplyWordWrap();
 	void SaveWindowSize();

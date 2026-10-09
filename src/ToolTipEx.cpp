@@ -5,6 +5,9 @@
 #include "Options.h"
 #include "ActionEnums.h"
 #include "HyperLink.h"
+#include "ThemedPopupMenu.h"
+#include <atlbase.h>
+#include <atlcomcli.h>
 #include <Richedit.h>
 
 #ifdef _DEBUG
@@ -32,6 +35,7 @@ CToolTipEx::CToolTipEx(): m_dwTextStyle(DT_EXPANDTABS | DT_EXTERNALLEADING |
 	m_showingText = false;
 	m_showingRTF = false;
 	m_showingHTML = false;
+	m_showingImage = false;
 }
 
 CToolTipEx::~CToolTipEx()
@@ -146,6 +150,7 @@ BOOL CToolTipEx::Create(CWnd *pParentWnd)
 	m_folderPathStatic.SetBkColor(CGetSetOptions::m_Theme.DescriptionWindowBG());
 	m_folderPathStatic.SetTextColor(CGetSetOptions::m_Theme.DescriptionWindowText());
 	
+	RefreshThemeColors();
 	m_saveWindowLockout = false;
 
     return TRUE;
@@ -312,6 +317,7 @@ BOOL CToolTipEx::Show(CPoint point)
 		}
 	}
 
+	RefreshThemeColors();
 	ShowWindow(SW_SHOWNA);
 	//this->Invalidate();
 	//this->UpdateWindow();	
@@ -845,20 +851,10 @@ void CToolTipEx::SetHtmlText(const CString &html)
 			}
 		}
 
-		COLORREF c = CGetSetOptions::m_Theme.DescriptionWindowBG();
-
-		DWORD dwR = GetRValue(c);
-		DWORD dwG = GetGValue(c);
-		DWORD dwB = GetBValue(c);
-
-		CString colorHex;
-		colorHex.Format(_T("#%02X%02X%02X"), dwR, dwG, dwB);
-		
-		m_html.Replace(_T("<body>"), StrF(_T("<body bgcolor=\"%s\">"), colorHex));
-
 		m_browser.PutSilent(true);
 		m_browser.Clear();
 		m_browser.Write(m_html);
+		ApplyHtmlTheme();
 	}
 }
 
@@ -887,15 +883,74 @@ void CToolTipEx::SetToolTipText(const CString &csText)
     m_RichEdit.SetText(csText);
 	m_RichEdit.SetSel(0, 0);
 
-	CHARFORMAT cfNew;
-	cfNew.cbSize = sizeof(CHARFORMAT);
-	cfNew.dwMask = CFM_COLOR;
-	cfNew.dwEffects = CFM_COLOR;
-	cfNew.dwEffects &= ~CFE_AUTOCOLOR;
-	cfNew.crTextColor = CGetSetOptions::m_Theme.DescriptionWindowText();
-	m_RichEdit.SetDefaultCharFormat(cfNew);
+	ApplyPlainTextTheme();
 
 	HighlightSearchText();
+}
+
+void CToolTipEx::ApplyPlainTextTheme()
+{
+	// SCF_DEFAULT alone does not recolor existing text after streaming it in.
+	// Also clear backgrounds left by a previously displayed RTF clip.
+	CHARFORMAT2 format = {};
+	format.cbSize = sizeof(format);
+	format.dwMask = CFM_COLOR | CFM_BACKCOLOR;
+	format.dwEffects = CFE_AUTOBACKCOLOR;
+	format.crTextColor = CGetSetOptions::m_Theme.DescriptionWindowText();
+	m_RichEdit.SendMessage(EM_SETCHARFORMAT, SCF_DEFAULT, reinterpret_cast<LPARAM>(&format));
+	m_RichEdit.SendMessage(EM_SETCHARFORMAT, SCF_ALL, reinterpret_cast<LPARAM>(&format));
+}
+
+void CToolTipEx::ApplyHtmlTheme()
+{
+	if (!::IsWindow(m_browser.m_hWnd))
+		return;
+
+	CComPtr<IHTMLDocument2> document;
+	document.Attach(m_browser.GetDocument());
+	if (!document)
+		return;
+
+	auto htmlColor = [](COLORREF color) -> CString
+	{
+		CString value;
+		value.Format(_T("#%02X%02X%02X"), GetRValue(color), GetGValue(color), GetBValue(color));
+		return value;
+	};
+	const auto& theme = CGetSetOptions::m_Theme;
+	// Set document defaults, preserving explicit styles inside the HTML clip.
+	// This works for body attributes, uppercase tags, and HTML fragments too.
+	document->put_bgColor(CComVariant(htmlColor(theme.DescriptionWindowBG()).GetString()));
+	document->put_fgColor(CComVariant(htmlColor(theme.DescriptionWindowText()).GetString()));
+	document->put_linkColor(CComVariant(htmlColor(theme.SearchTextHighlight()).GetString()));
+}
+
+void CToolTipEx::RefreshThemeColors()
+{
+	const auto& theme = CGetSetOptions::m_Theme;
+	m_DittoWindow.SetCaptionColors(theme.CaptionLeft(), theme.CaptionRight(), theme.Border());
+	m_DittoWindow.SetCaptionTextColor(theme.CaptionTextColor());
+	m_RichEdit.SetBackgroundColor(FALSE, theme.DescriptionWindowBG());
+	m_clipDataStatic.SetBkColor(theme.DescriptionWindowBG());
+	m_clipDataStatic.SetTextColor(theme.DescriptionWindowText());
+	m_folderPathStatic.SetBkColor(theme.DescriptionWindowBG());
+	m_folderPathStatic.SetTextColor(theme.DescriptionWindowText());
+	m_optionsButton.RefreshBackground(NULL);
+
+	if (m_showingText)
+	{
+		// A live theme change must preserve the user's selection and scroll position.
+		CHARRANGE selection;
+		POINT scroll = {};
+		m_RichEdit.GetSel(selection);
+		m_RichEdit.SendMessage(EM_GETSCROLLPOS, 0, reinterpret_cast<LPARAM>(&scroll));
+		ApplyPlainTextTheme();
+		HighlightSearchText();
+		m_RichEdit.SetSel(selection);
+		m_RichEdit.SendMessage(EM_SETSCROLLPOS, 0, reinterpret_cast<LPARAM>(&scroll));
+	}
+	ApplyHtmlTheme();
+	RedrawWindow(NULL, NULL, RDW_INVALIDATE | RDW_ALLCHILDREN | RDW_FRAME);
 }
 
 void CToolTipEx::HighlightSearchText()
@@ -911,12 +966,10 @@ void CToolTipEx::HighlightSearchText()
 	ft.chrg.cpMin = 0;
 	ft.chrg.cpMax = -1;
 
-	CHARFORMAT cf;
-
+	CHARFORMAT cf = {};
 	cf.cbSize = sizeof(cf);
 	cf.dwMask = CFM_COLOR;
-	cf.dwEffects = CFE_BOLD | ~CFE_AUTOCOLOR;
-	cf.crTextColor = RGB(255, 0, 0);
+	cf.crTextColor = CGetSetOptions::m_Theme.SearchTextHighlight();
 
 	m_RichEdit.SetRedraw(0);
 	auto mask = m_RichEdit.GetEventMask();
@@ -1241,6 +1294,12 @@ void CToolTipEx::OnOptions()
 		if (CGetSetOptions::GetWrapDescriptionText())
 			cmSubMenu->CheckMenuItem(ID_FIRST_WRAPTEXT, MF_CHECKED);
 		
+		const auto& theme = CGetSetOptions::m_Theme;
+		PopupMenuColors colors = {
+			theme.DescriptionWindowBG(), theme.DescriptionWindowText(),
+			theme.ListBoxSelectedBG(), theme.ListBoxSelectedText(), theme.Border()
+		};
+		CThemedPopupMenu themedMenu(m_hWnd, cmSubMenu->GetSafeHmenu(), colors);
 		cmSubMenu->TrackPopupMenu(TPM_LEFTALIGN | TPM_TOPALIGN | TPM_RIGHTBUTTON, pp.x, pp.y, this, NULL);
 	}
 }
@@ -1315,6 +1374,7 @@ void CToolTipEx::OnPaint()
 	pOldBrush = dc.SelectObject(&Brush);
 
 	dc.FillRect(&rect, &Brush);
+	m_optionsButton.RefreshBackground(&dc);
 
 	// Cleanup
 	dc.SelectObject(pOldBrush);
@@ -1414,6 +1474,9 @@ BOOL CToolTipEx::OnNotify(WPARAM wParam, LPARAM lParam, LRESULT* pResult)
 			}
 		}
 		break;
+		case SimpleBrowser::NotificationType::DocumentComplete:
+			ApplyHtmlTheme();
+			break;
 		case SimpleBrowser::NotificationType::BeforeNavigate2:
 		{
 			SimpleBrowser::Notification * not = (SimpleBrowser::Notification *)lParam;
@@ -1560,10 +1623,7 @@ void CToolTipEx::OnFirstViewtext()
 	}
 	m_imageViewer.ShowWindow(SW_HIDE);
 
-	m_RichEdit.SetText(m_csText);
-
-	m_RichEdit.SetSel(0, 0);
-	HighlightSearchText();
+	SetToolTipText(m_csText);
 
 	m_RichEdit.ShowWindow(SW_SHOW);
 

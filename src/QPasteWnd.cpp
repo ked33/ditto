@@ -128,11 +128,13 @@ namespace
 		// Match the whole text, independently of the user's search mode and
 		// regex case setting. Do not classify a truncated description as a URL.
 		const CString pattern = _T("(?i)\\A\\s*(?:https?://(?:[^\\s/?#<>\"@]+@)?|www\\.)(?:[\\p{L}\\p{N}](?:[\\p{L}\\p{N}-]*[\\p{L}\\p{N}])?(?:\\.[\\p{L}\\p{N}](?:[\\p{L}\\p{N}-]*[\\p{L}\\p{N}])?)*|\\[[0-9a-f:.]+\\])(?::[0-9]{1,5})?(?:[/?#][^\\s<>\"]*)?\\s*\\z");
-		const CString cachedUnicode = _T("Main.lID IN (SELECT LinkText.clipID FROM MainFullTextCache LinkText WHERE LinkText.fulltext REGEXP '%s')");
-		const CString rawUnicode = _T("Main.lID IN (SELECT LinkData.lParentID FROM Data LinkData WHERE LinkData.strClipBoardFormat = 'CF_UNICODETEXT' AND ditto_clipboard_text(LinkData.ooData, 'CF_UNICODETEXT') REGEXP '%s')");
+		// Probe each candidate by its indexed clip ID. Uncorrelated IN subqueries
+		// rescan every body before each LIMIT/OFFSET page can be displayed.
+		const CString cachedUnicode = _T("EXISTS (SELECT 1 FROM MainFullTextCache LinkText WHERE LinkText.clipID = Main.lID AND LinkText.fulltext REGEXP '%s')");
+		const CString rawUnicode = _T("EXISTS (SELECT 1 FROM Data LinkData WHERE LinkData.lParentID = Main.lID AND LinkData.strClipBoardFormat = 'CF_UNICODETEXT' AND ditto_clipboard_text(LinkData.ooData, 'CF_UNICODETEXT') REGEXP '%s')");
 		// Prefer Unicode if both formats exist. ANSI-only clips are not in the
 		// Unicode full-text cache, so read their actual body rather than mText.
-		const CString rawAnsi = _T("Main.lID IN (SELECT LinkData.lParentID FROM Data LinkData WHERE LinkData.strClipBoardFormat = 'CF_TEXT' AND NOT EXISTS (SELECT 1 FROM Data UnicodeData WHERE UnicodeData.lParentID = LinkData.lParentID AND UnicodeData.strClipBoardFormat = 'CF_UNICODETEXT') AND ditto_clipboard_text(LinkData.ooData, 'CF_TEXT') REGEXP '%s')");
+		const CString rawAnsi = _T("EXISTS (SELECT 1 FROM Data LinkData WHERE LinkData.lParentID = Main.lID AND LinkData.strClipBoardFormat = 'CF_TEXT' AND NOT EXISTS (SELECT 1 FROM Data UnicodeData WHERE UnicodeData.lParentID = LinkData.lParentID AND UnicodeData.strClipBoardFormat = 'CF_UNICODETEXT') AND ditto_clipboard_text(LinkData.ooData, 'CF_TEXT') REGEXP '%s')");
 		CString unicodeFilter;
 		unicodeFilter.Format(indexReady ? cachedUnicode : rawUnicode, pattern.GetString());
 		CString ansiFilter;
@@ -8486,8 +8488,9 @@ void CQPasteWnd::RefreshThemeColors()
 	SetCaptionColorActive(CGetSetOptions::m_bShowPersistent, theApp.GetConnectCV());
 	SetCaptionOn(CGetSetOptions::GetCaptionPos(), true, CGetSetOptions::m_Theme.GetCaptionSize(), CGetSetOptions::m_Theme.GetCaptionFontSize());
 	
-	// Refresh scrollbar colors
+	// Refresh scrollbar and existing description-window colors.
 	RefreshScrollBarColors();
+	m_lstHeader.RefreshToolTipTheme();
 	
 	// Force repaint of the entire window including non-client area
 	SetWindowPos(NULL, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);

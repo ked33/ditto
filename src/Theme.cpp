@@ -183,6 +183,9 @@ bool CTheme::Load(CString csTheme, bool bHeaderOnly, bool bCheckLastWriteTime)
 	LoadInt(ItemHeader, "CaptionSize", m_captionSize);
 	LoadInt(ItemHeader, "CaptionFontSize", m_captionFontSize);
 
+	// A theme without description colors should inherit its main palette.
+	m_descriptionWindowBG = m_mainWindowBG;
+	m_descriptionWindowText = m_ListBoxEvenRowsText;
 	LoadColor(ItemHeader, "DescriptionWindowBG", m_descriptionWindowBG);
 	LoadColor(ItemHeader, "DescriptionWindowText", m_descriptionWindowText);
 
