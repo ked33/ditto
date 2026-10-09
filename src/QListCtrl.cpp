@@ -4,6 +4,7 @@
 #include "stdafx.h"
 #include "CP_Main.h"
 #include "QListCtrl.h"
+#include "NativeToolTipTheme.h"
 #include "ProcessPaste.h"
 #include "BitmapHelper.h"
 #include "MainTableFunctions.h"
@@ -206,6 +207,7 @@ CQListCtrl::CQListCtrl()
 	m_windowDpi = NULL;
 	m_SmallFont = NULL;
 	m_pToolTip = NULL;
+	m_nativeToolTipHwnd = NULL;
 	m_pFormatter = NULL;
 	m_allSelected = false;
 	m_rowHeight = 50;
@@ -1250,6 +1252,10 @@ BOOL CQListCtrl::OnToolTipText(UINT id, NMHDR* pNMHDR, LRESULT* pResult)
 	if (nID == 0)	  	// Notification in NT from automatically
 		return FALSE;   	// created tooltip
 
+	// Hover descriptions use MFC's native tooltip, separate from CToolTipEx.
+	m_nativeToolTipHwnd = pNMHDR->hwndFrom;
+	ApplyNativeToolTipTheme(m_nativeToolTipHwnd,
+		CGetSetOptions::m_Theme.DescriptionWindowBG(), CGetSetOptions::m_Theme.DescriptionWindowText());
 	::SendMessage(pNMHDR->hwndFrom, TTM_SETMAXTIPWIDTH, 0, 500);
 
 	if (CGetSetOptions::m_tooltipTimeout > 0)
@@ -1752,6 +1758,8 @@ bool CQListCtrl::ShowFullDescription(bool bFromAuto, bool fromNextPrev)
 
 void CQListCtrl::RefreshToolTipTheme()
 {
+	ApplyNativeToolTipTheme(m_nativeToolTipHwnd,
+		CGetSetOptions::m_Theme.DescriptionWindowBG(), CGetSetOptions::m_Theme.DescriptionWindowText());
 	if (VALID_TOOLTIP)
 	{
 		m_pToolTip->RefreshThemeColors();

@@ -8,6 +8,7 @@ import json
 import os
 import re
 import sqlite3
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -18,18 +19,25 @@ ICU_EXTENSION = os.environ.get("DITTO_ICU_EXTENSION")
 LITERAL = r'"(?:\\.|[^"\\])*"'
 
 
-def constant(name):
-    return json.loads(re.search(
-        rf'const CString {name} = _T\(({LITERAL})\);', SOURCE
-    ).group(1))
+def sql_factory(name):
+    # Evaluate the string-only C++ factories, including the shared predicate.
+    source = (ROOT / "src/SearchIndexSql.cpp").read_text(encoding="utf-8")
+    body = re.search(rf"{name}\(\)\s*\{{(.*?)\n\t\}}", source, re.S).group(1)
+    body = re.sub(r"^\s*//.*$", "", body, flags=re.M)
+    return "".join(sql_factory("WebLinkPredicateUtf8") if token == "WebLinkPredicateUtf8()"
+                   else json.loads(token)
+                   for token in re.findall(LITERAL + r"|WebLinkPredicateUtf8\(\)", body))
 
 
-def link_filter(index_ready):
-    # CString::Format substitutes the same constant pattern in these templates.
-    pattern = constant("pattern")
-    unicode_sql = constant("cachedUnicode" if index_ready else "rawUnicode")
-    ansi_sql = constant("rawAnsi")
-    return "(" + unicode_sql.replace("%s", pattern) + " OR " + ansi_sql.replace("%s", pattern) + ")"
+def link_filter():
+    return sql_factory("WebLinkFilterUtf8")
+
+
+def set_link_index(db, enabled=True):
+    if enabled:
+        db.execute(sql_factory("WebLinkIndexUtf8"))
+    else:
+        db.execute("DROP INDEX IF EXISTS Data_WebLink_v1")
 
 
 def rtf_filter():
@@ -80,7 +88,8 @@ class FilterWiringTests(unittest.TestCase):
         self.assertEqual(SOURCE.count("AppendAndSearchFilter(strFilter, clipboardFormatFilterSql);"), 2)
         self.assertIn("strFilter = clipboardFormatFilterSql;", SOURCE)
         self.assertLess(SOURCE.index("ExtractSearchClipboardFormatFilter(csSQLSearch)"), SOURCE.index("bool bQuickPastePrefixSearch"))
-        self.assertIn('return _T("(") + unicodeFilter + _T(" OR ") + ansiFilter + _T(")");', SOURCE)
+        self.assertIn("SearchIndexSql::WebLinkFilterUtf8().c_str()", SOURCE)
+        self.assertIn("SearchIndexSql::WebLinkIndexUtf8()", (ROOT / "src/SearchIndex.cpp").read_text())
 
     def test_rtf_is_a_format_not_a_description_or_html(self):
         db = open_db()
@@ -113,9 +122,9 @@ class LinkPagingTests(unittest.TestCase):
                 calls.append(text)
                 return text.startswith("https://")
 
-            db.create_function("regexp", 2, count_match)
+            db.create_function("regexp", 2, count_match, deterministic=True)
             db.create_function("ditto_clipboard_text", 2, lambda blob, fmt:
-                               blob.decode("utf-16le" if fmt == "CF_UNICODETEXT" else "ascii").rstrip("\0"))
+                               blob.decode("utf-16le" if fmt == "CF_UNICODETEXT" else "ascii").rstrip("\0"), deterministic=True)
             try:
                 for clip_id in range(1, 4001):
                     # Include both Unicode and ANSI-only clips, plus groups.
@@ -130,18 +139,28 @@ class LinkPagingTests(unittest.TestCase):
                     CREATE INDEX Main_TopLevel ON Main(stickyClipOrder DESC, bIsGroup ASC, clipOrder DESC);
                     CREATE INDEX Main_InGroup2 ON Main(lParentID ASC, stickyClipOrder DESC, bIsGroup ASC, clipOrder DESC);
                 """)
+                set_link_index(db, ready)
                 for group in (None, 1):
                     expected = [i for i in range(4000, 0, -1) if group is None or i % 3 == group]
                     for offset in (0, 60, 600):
                         calls.clear()
-                        sql = "SELECT Main.lID FROM Main WHERE " + link_filter(ready)
+                        sql = "SELECT Main.lID FROM Main WHERE " + link_filter()
                         if group is not None:
                             sql += f" AND Main.lParentID = {group}"
                         sql += " ORDER BY Main.stickyClipOrder DESC, Main.bIsGroup ASC, Main.clipOrder DESC"
                         sql += f" LIMIT 30 OFFSET {offset}"
                         with self.subTest(index_ready=ready, group=group, offset=offset):
                             self.assertEqual([r[0] for r in db.execute(sql)], expected[offset:offset + 30])
-                            self.assertLessEqual(len(calls), 2 * (offset + 30))
+                            if ready:
+                                self.assertEqual(len(calls), 0, "Indexed paging reclassified text")
+                                plan = " ".join(r[3] for r in db.execute("EXPLAIN QUERY PLAN " + sql))
+                                self.assertIn("Data_WebLink_v1", plan)
+                            else:
+                                self.assertLessEqual(len(calls), 2 * (offset + 30))
+                if ready:
+                    calls.clear()
+                    self.assertEqual(db.execute("SELECT COUNT(*) FROM Main WHERE " + link_filter()).fetchone()[0], 4000)
+                    self.assertEqual(calls, [], "Indexed count reclassified text")
             finally:
                 db.close()
 
@@ -169,8 +188,9 @@ class LinkFilterTests(unittest.TestCase):
             for i, body in enumerate(accepted + rejected, 1):
                 add_clip(db, i, body)
             for ready in (False, True):
+                set_link_index(db, ready)
                 with self.subTest(index_ready=ready):
-                    self.assertEqual(matching(db, link_filter(ready)), list(range(1, len(accepted) + 1)))
+                    self.assertEqual(matching(db, link_filter()), list(range(1, len(accepted) + 1)))
         finally:
             db.close()
 
@@ -185,8 +205,75 @@ class LinkFilterTests(unittest.TestCase):
             add_clip(db, 6, "https://example.com/" + "x" * 5000, "short description")
             db.execute("INSERT INTO Data VALUES(5, 'HTML Format', ?)", (b"https://example.com",))
             for ready in (False, True):
+                set_link_index(db, ready)
                 with self.subTest(index_ready=ready):
-                    self.assertEqual(matching(db, link_filter(ready)), [3, 4, 6])
+                    self.assertEqual(matching(db, link_filter()), [3, 4, 6])
+        finally:
+            db.close()
+
+    def test_link_index_tracks_format_changes_and_rollbacks(self):
+        db = open_db()
+        try:
+            set_link_index(db)
+            add_clip(db, 1, "ordinary text", ansi="https://ansi.example.com")
+            add_clip(db, 2, "https://unicode.example.com")
+            self.assertEqual(matching(db, link_filter()), [2])
+            db.execute("DELETE FROM Data WHERE lParentID=1 AND strClipBoardFormat='CF_UNICODETEXT'")
+            self.assertEqual(matching(db, link_filter()), [1, 2])
+            db.execute("UPDATE Data SET ooData=? WHERE lParentID=2",
+                       (("ordinary text" + chr(0)).encode("utf-16le"),))
+            self.assertEqual(matching(db, link_filter()), [1])
+            db.commit()
+            db.execute("UPDATE Data SET strClipBoardFormat='HTML Format' WHERE lParentID=1")
+            self.assertEqual(matching(db, link_filter()), [])
+            db.rollback()
+            self.assertEqual(matching(db, link_filter()), [1])
+            db.execute("INSERT INTO Data SELECT * FROM Data WHERE lParentID=1")
+            self.assertEqual(matching(db, link_filter()), [1])
+            db.execute("UPDATE Data SET lParentID=2 WHERE lParentID=1")
+            self.assertEqual(matching(db, link_filter()), [])  # Unicode still wins.
+            db.execute("DELETE FROM Data WHERE strClipBoardFormat='CF_UNICODETEXT'")
+            self.assertEqual(matching(db, link_filter()), [2])
+            db.execute("DELETE FROM Data")
+            self.assertEqual(matching(db, link_filter()), [])
+            self.assertEqual(db.execute("PRAGMA integrity_check").fetchone(), ("ok",))
+        finally:
+            db.close()
+
+    def test_index_creation_rollback_reopen_and_repair(self):
+        db = open_db()
+        try:
+            add_clip(db, 1, "https://example.com")
+            db.commit()
+            db.execute("BEGIN IMMEDIATE")
+            set_link_index(db)
+            db.rollback()
+            self.assertIsNone(db.execute("SELECT name FROM sqlite_master WHERE name='Data_WebLink_v1'").fetchone())
+            self.assertEqual(matching(db, link_filter()), [1])
+            set_link_index(db)
+            db.commit()
+            with tempfile.TemporaryDirectory(prefix="ditto-link-index-test-") as folder:
+                path = Path(folder) / "index.db"
+                disk = sqlite3.connect(path)
+                try:
+                    db.backup(disk)
+                finally:
+                    disk.close()
+                disk = sqlite3.connect(path)
+                try:
+                    # Match CppSQLite3DB::open: a fallback regexp is registered
+                    # before loading ICU and its deterministic functions.
+                    disk.create_function("regexp", 2, lambda pattern, text: 0)
+                    disk.enable_load_extension(True)
+                    disk.load_extension(str(Path(ICU_EXTENSION).resolve()), entrypoint="sqlite3_icu_init")
+                    disk.enable_load_extension(False)
+                    self.assertEqual(matching(disk, link_filter()), [1])
+                    disk.execute("DROP INDEX Data_WebLink_v1")
+                    set_link_index(disk)
+                    self.assertEqual(matching(disk, link_filter()), [1])
+                    self.assertEqual(disk.execute("PRAGMA integrity_check").fetchone(), ("ok",))
+                finally:
+                    disk.close()
         finally:
             db.close()
 
@@ -212,7 +299,8 @@ class LinkFilterTests(unittest.TestCase):
                         self.assertEqual(db.execute("SELECT ditto_clipboard_text(?,?)", (blob, fmt)).fetchone()[0], expected)
                 add_clip(db, 1, "https://例子.测试/路径")
                 add_clip(db, 2, None, ansi="https://ansi.example.com")
-                self.assertEqual(matching(db, link_filter(False)), [1, 2])
+                set_link_index(db)
+                self.assertEqual(matching(db, link_filter()), [1, 2])
             finally:
                 db.close()
 
@@ -226,7 +314,8 @@ class LinkFilterTests(unittest.TestCase):
             add_clip(db, 5, "https://example.com/alpha", "other", group=7, starred=1)
             db.execute("UPDATE Main SET QuickPasteText='needle' WHERE lID=5")
             for ready in (False, True):
-                predicate = "(Main.mText LIKE '%needle%' OR Main.QuickPasteText LIKE '%needle%') AND " + link_filter(ready)
+                set_link_index(db, ready)
+                predicate = "(Main.mText LIKE '%needle%' OR Main.QuickPasteText LIKE '%needle%') AND " + link_filter()
                 predicate += " AND Main.lParentID=7 AND Main.starred=1"
                 self.assertEqual(matching(db, predicate), [1, 5])
                 self.assertEqual(db.execute("SELECT COUNT(Main.lID) FROM Main WHERE " + predicate).fetchone()[0], 2)

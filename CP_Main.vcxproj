@@ -995,6 +995,7 @@
     <ClInclude Include="src\SystemTray.h" />
     <ClInclude Include="src\TabCtrl.h" />
     <ClInclude Include="src\Theme.h" />
+    <ClInclude Include="src\NativeToolTipTheme.h" />
     <ClInclude Include="src\ThemedPopupMenu.h" />
     <ClInclude Include="src\TinyXml\tinystr.h" />
     <ClInclude Include="src\TinyXml\tinyxml.h" />

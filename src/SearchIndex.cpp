@@ -106,6 +106,9 @@ namespace SearchIndex
 			{
 				db.execDML(ToCString(sql));
 			}
+			// Classify text formats once, then let SQLite maintain membership on
+			// insert/update/delete. Paging and counts no longer read text BLOBs.
+			db.execDML(ToCString(SearchIndexSql::WebLinkIndexUtf8()));
 			db.execDMLEx(_T("UPDATE MainSearchMeta SET version = %d;"), SearchIndexSql::kCurrentVersion);
 			db.execDML(_T("COMMIT;"));
 			inTransaction = false;

@@ -184,6 +184,7 @@ protected:
 	CMapIDtoCF m_RTFData;
 	CToolTipEx *m_pToolTip;
 	HWND m_toolTipHwnd;
+	HWND m_nativeToolTipHwnd;
 	CFont m_Font;
 	CFont m_boldFont;
 	IFormattedTextDraw *m_pFormatter;

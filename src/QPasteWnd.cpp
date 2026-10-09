@@ -25,6 +25,7 @@
 #include "QPasteWnd.h"
 #include "ThemedPopupMenu.h"
 #include "SearchIndex.h"
+#include "SearchIndexSql.h"
 #include "SendMail.h"
 #include <algorithm>
 #include <signal.h>
@@ -123,26 +124,7 @@ namespace
 		return SearchClipboardFormatFilter::None;
 	}
 
-	CString GetWebLinkFilterSql(bool indexReady)
-	{
-		// Match the whole text, independently of the user's search mode and
-		// regex case setting. Do not classify a truncated description as a URL.
-		const CString pattern = _T("(?i)\\A\\s*(?:https?://(?:[^\\s/?#<>\"@]+@)?|www\\.)(?:[\\p{L}\\p{N}](?:[\\p{L}\\p{N}-]*[\\p{L}\\p{N}])?(?:\\.[\\p{L}\\p{N}](?:[\\p{L}\\p{N}-]*[\\p{L}\\p{N}])?)*|\\[[0-9a-f:.]+\\])(?::[0-9]{1,5})?(?:[/?#][^\\s<>\"]*)?\\s*\\z");
-		// Probe each candidate by its indexed clip ID. Uncorrelated IN subqueries
-		// rescan every body before each LIMIT/OFFSET page can be displayed.
-		const CString cachedUnicode = _T("EXISTS (SELECT 1 FROM MainFullTextCache LinkText WHERE LinkText.clipID = Main.lID AND LinkText.fulltext REGEXP '%s')");
-		const CString rawUnicode = _T("EXISTS (SELECT 1 FROM Data LinkData WHERE LinkData.lParentID = Main.lID AND LinkData.strClipBoardFormat = 'CF_UNICODETEXT' AND ditto_clipboard_text(LinkData.ooData, 'CF_UNICODETEXT') REGEXP '%s')");
-		// Prefer Unicode if both formats exist. ANSI-only clips are not in the
-		// Unicode full-text cache, so read their actual body rather than mText.
-		const CString rawAnsi = _T("EXISTS (SELECT 1 FROM Data LinkData WHERE LinkData.lParentID = Main.lID AND LinkData.strClipBoardFormat = 'CF_TEXT' AND NOT EXISTS (SELECT 1 FROM Data UnicodeData WHERE UnicodeData.lParentID = LinkData.lParentID AND UnicodeData.strClipBoardFormat = 'CF_UNICODETEXT') AND ditto_clipboard_text(LinkData.ooData, 'CF_TEXT') REGEXP '%s')");
-		CString unicodeFilter;
-		unicodeFilter.Format(indexReady ? cachedUnicode : rawUnicode, pattern.GetString());
-		CString ansiFilter;
-		ansiFilter.Format(rawAnsi, pattern.GetString());
-		return _T("(") + unicodeFilter + _T(" OR ") + ansiFilter + _T(")");
-	}
-
-	CString GetSearchClipboardFormatFilterSql(SearchClipboardFormatFilter filter, bool indexReady)
+	CString GetSearchClipboardFormatFilterSql(SearchClipboardFormatFilter filter)
 	{
 		switch (filter)
 		{
@@ -151,7 +133,7 @@ namespace
 		case SearchClipboardFormatFilter::File:
 			return _T("Main.lID IN (SELECT Data.lParentID FROM Data WHERE Data.strClipBoardFormat = 'CF_HDROP')");
 		case SearchClipboardFormatFilter::Link:
-			return GetWebLinkFilterSql(indexReady);
+			return CString(SearchIndexSql::WebLinkFilterUtf8().c_str());
 		case SearchClipboardFormatFilter::RichText:
 			return _T("Main.lID IN (SELECT Data.lParentID FROM Data WHERE Data.strClipBoardFormat = 'Rich Text Format')");
 		default:
@@ -1678,7 +1660,7 @@ BOOL CQPasteWnd::FillList(CString csSQLSearch)
 	CString originalSQLSearch(csSQLSearch);
 	SearchClipboardFormatFilter clipboardFormatFilter = ExtractSearchClipboardFormatFilter(csSQLSearch);
 	const bool searchIndexReady = SearchIndex::IsReady();
-	CString clipboardFormatFilterSql = GetSearchClipboardFormatFilterSql(clipboardFormatFilter, searchIndexReady);
+	CString clipboardFormatFilterSql = GetSearchClipboardFormatFilterSql(clipboardFormatFilter);
 	if (clipboardFormatFilter != SearchClipboardFormatFilter::None)
 	{
 		m_lstHeader.SetSearchText(csSQLSearch);

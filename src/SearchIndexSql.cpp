@@ -49,6 +49,29 @@ namespace SearchIndexSql
 		};
 	}
 
+	std::string WebLinkPredicateUtf8()
+	{
+		// This exact predicate is shared by the partial index and the query.
+		// Bump the index suffix if matching semantics change, to rebuild old keys.
+		return "strClipBoardFormat IN ('CF_TEXT', 'CF_UNICODETEXT') AND ditto_clipboard_text(ooData, strClipBoardFormat) REGEXP '(?i)\\A\\s*(?:https?://(?:[^\\s/?#<>\"@]+@)?|www\\.)(?:[\\p{L}\\p{N}](?:[\\p{L}\\p{N}-]*[\\p{L}\\p{N}])?(?:\\.[\\p{L}\\p{N}](?:[\\p{L}\\p{N}-]*[\\p{L}\\p{N}])?)*|\\[[0-9a-f:.]+\\])(?::[0-9]{1,5})?(?:[/?#][^\\s<>\"]*)?\\s*\\z'";
+	}
+
+	std::string WebLinkIndexUtf8()
+	{
+		return "CREATE INDEX IF NOT EXISTS Data_WebLink_v1 ON Data(lParentID, strClipBoardFormat) WHERE " + WebLinkPredicateUtf8();
+	}
+
+	std::string WebLinkFilterUtf8()
+	{
+		// Unicode takes precedence even when the ANSI body looks like a link.
+		// The predicate also works without the index if setup failed.
+		return "EXISTS (SELECT 1 FROM Data LinkData WHERE LinkData.lParentID = Main.lID AND " +
+			WebLinkPredicateUtf8() +
+			" AND (LinkData.strClipBoardFormat = 'CF_UNICODETEXT' OR NOT EXISTS "
+			"(SELECT 1 FROM Data UnicodeData WHERE UnicodeData.lParentID = LinkData.lParentID "
+			"AND UnicodeData.strClipBoardFormat = 'CF_UNICODETEXT')))";
+	}
+
 	std::vector<std::string> LegacyCleanupStatementsUtf8()
 	{
 		return

@@ -1,10 +1,13 @@
 // Standalone Win32 regression test; does not require MFC or display a window.
 #include "../src/ThemedPopupMenu.h"
+#include "../src/NativeToolTipTheme.h"
 #include <commctrl.h>
 #include <cassert>
 #include <cstdio>
 #include <string>
 #include <vector>
+
+#pragma comment(linker, "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 
 namespace
 {
@@ -59,6 +62,41 @@ namespace
 		return DefWindowProcW(window, message, wParam, lParam);
 	}
 
+	void CheckNativeToolTip(HWND owner)
+	{
+		HWND tip = CreateWindowExW(0, TOOLTIPS_CLASSW, L"", WS_POPUP | TTS_ALWAYSTIP,
+			0, 0, 300, 100, owner, NULL, GetModuleHandleW(NULL), NULL);
+		assert(tip);
+		SendMessageW(tip, TTM_SETMAXTIPWIDTH, 0, 500);
+		SendMessageW(tip, TTM_SETDELAYTIME, TTDT_AUTOPOP, 7000);
+		wchar_t sample[] = L"Clipboard text\r\nDatabase ID: 123";
+		TOOLINFOW tool = { sizeof(tool) };
+		tool.hwnd = owner;
+		tool.uId = 1;
+		tool.rect = {0, 0, 300, 100};
+		tool.lpszText = sample;
+		assert(SendMessageW(tip, TTM_ADDTOOLW, 0, reinterpret_cast<LPARAM>(&tool)));
+
+		for (const auto& palette : std::vector<PopupMenuColors>{
+			{RGB(40, 42, 54), RGB(248, 248, 242), 0, 0, 0},
+			{RGB(255, 255, 225), RGB(25, 25, 25), 0, 0, 0}})
+		{
+			ApplyNativeToolTipTheme(tip, palette.background, palette.text);
+			assert(GetWindowTheme(tip) == NULL);
+			assert(SendMessageW(tip, TTM_GETTIPBKCOLOR, 0, 0) == palette.background);
+			assert(SendMessageW(tip, TTM_GETTIPTEXTCOLOR, 0, 0) == palette.text);
+			assert(SendMessageW(tip, TTM_GETMAXTIPWIDTH, 0, 0) == 500);
+			assert(SendMessageW(tip, TTM_GETDELAYTIME, TTDT_AUTOPOP, 0) == 7000);
+			wchar_t text[100] = {};
+			tool.lpszText = text;
+			SendMessageW(tip, TTM_GETTEXTW, 100, reinterpret_cast<LPARAM>(&tool));
+			assert(std::wstring(text) == sample);
+		}
+		DestroyWindow(tip);
+		ApplyNativeToolTipTheme(NULL, 0, 0);
+		puts("PASS: native hover tooltip colors, visual-style override, light/dark refresh, text and timing");
+	}
+
 	void CheckMnemonic(HWND owner, HMENU menu, wchar_t key, UINT position, UINT action)
 	{
 		LRESULT result = SendMessageW(owner, WM_MENUCHAR, MAKEWPARAM(key, MF_POPUP), reinterpret_cast<LPARAM>(menu));
@@ -78,6 +116,7 @@ int main()
 	assert(RegisterClassW(&wc));
 	HWND owner = CreateWindowW(wc.lpszClassName, L"", WS_OVERLAPPEDWINDOW, 0, 0, 300, 200, NULL, NULL, wc.hInstance, NULL);
 	assert(owner);
+	CheckNativeToolTip(owner);
 	root = CreatePopupMenu();
 	HMENU child = CreatePopupMenu();
 	HMENU addin = CreatePopupMenu();
