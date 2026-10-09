@@ -589,7 +589,9 @@ int brogden(sqlite3* db) {
       {"like",   3, SQLITE_UTF8 | SQLITEICU_EXTRAFLAGS,        0, icuLikeFunc},
   #endif /* !defined(SQLITE_CORE) || defined(SQLITE_ENABLE_ICU) */
     };
-    int rc = DittoCharacterTokenizer::Register(db);
+    // FTS5 registration prepares SQL and may validate existing partial indexes.
+    // Register their deterministic scalar functions before that schema read.
+    int rc = SQLITE_OK;
     int i;
 
     for (i = 0; rc == SQLITE_OK && i < (int)(sizeof(scalars) / sizeof(scalars[0])); i++) {
@@ -601,7 +603,7 @@ int brogden(sqlite3* db) {
         );
     }
 
-    return rc;
+    return rc == SQLITE_OK ? DittoCharacterTokenizer::Register(db) : rc;
 }
 
 
