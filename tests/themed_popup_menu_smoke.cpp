@@ -80,6 +80,7 @@ int main()
 	assert(owner);
 	root = CreatePopupMenu();
 	HMENU child = CreatePopupMenu();
+	HMENU addin = CreatePopupMenu();
 	assert(AppendMenuW(root, MF_STRING, 100, L"&Options\tCtrl+O"));
 	assert(AppendMenuW(root, MF_STRING, 101, L"&Other"));
 	assert(AppendMenuW(root, MF_SEPARATOR, 0, NULL));
@@ -88,6 +89,9 @@ int main()
 	assert(AppendMenuW(root, MF_STRING, 103, L"Rock && Roll"));
 	assert(AppendMenuW(root, MF_STRING, 104, L"&\u8bbe\u7f6e\tCtrl+,"));
 	assert(AppendMenuW(child, MF_STRING | MF_CHECKED, 105, L"&Find"));
+	// Clip menus contain an extra level: Add-Ins -> Ditto Utils -> command.
+	assert(AppendMenuW(child, MF_POPUP, reinterpret_cast<UINT_PTR>(addin), L"Ditto &Utils"));
+	assert(AppendMenuW(addin, MF_STRING, 3000, L"&Paste as text\tCtrl+Shift+V"));
 	assert(SetMenuDefaultItem(root, 100, FALSE));
 	MENUITEMINFOW metadata = { sizeof(metadata) };
 	metadata.fMask = MIIM_DATA;
@@ -117,6 +121,10 @@ int main()
 			SendMessageW(owner, WM_INITMENUPOPUP, reinterpret_cast<WPARAM>(child), 0);
 			assert(Info(child, 0).fType & MFT_RADIOCHECK);
 			assert(Info(child, 0).fState & MFS_CHECKED);
+			SendMessageW(owner, WM_INITMENUPOPUP, reinterpret_cast<WPARAM>(addin), 0);
+			assert(Info(addin, 0).fType & MFT_OWNERDRAW);
+			assert(Info(addin, 0).wID == 3000);
+			CheckMnemonic(owner, addin, L'p', 0, MNC_EXECUTE);
 			CheckMnemonic(owner, root, L'o', 0, MNC_SELECT);
 			assert(HiliteMenuItem(owner, root, 0, MF_BYPOSITION | MF_HILITE));
 			CheckMnemonic(owner, root, L'O', 1, MNC_SELECT);
@@ -172,6 +180,8 @@ int main()
 		assert(!(Info(root, 0).fType & MFT_OWNERDRAW));
 		assert(Info(root, 0).dwItemData == 0x1234);
 		assert(Info(child, 0).fType == MFT_RADIOCHECK);
+		assert(!(Info(addin, 0).fType & MFT_OWNERDRAW));
+		assert(Text(addin, 0) == L"&Paste as text\tCtrl+Shift+V");
 		MENUINFO restored = { sizeof(restored) };
 		restored.fMask = MIM_BACKGROUND;
 		assert(GetMenuInfo(root, &restored) && restored.hbrBack == originalBrush);
@@ -180,7 +190,7 @@ int main()
 		if (repeat == 0) baseline = current;
 		else assert(current <= baseline);
 	}
-	assert(initCount == 9 && commandCount == 3);
+	assert(initCount == 12 && commandCount == 3);
 	// Exit/menu commands can destroy the menu and its owner before tracking returns.
 	{
 		CThemedPopupMenu themed(owner, root, {0,0}, colors);

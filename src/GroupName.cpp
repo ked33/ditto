@@ -15,8 +15,8 @@ static char THIS_FILE[] = __FILE__;
 // CGroupName dialog
 
 
-CGroupName::CGroupName(CWnd* pParent /*=NULL*/)
-	: CDialog(CGroupName::IDD, pParent)
+CGroupName::CGroupName(CWnd* pParent, LPCTSTR title, LPCTSTR prompt)
+	: CDialog(CGroupName::IDD, pParent), m_title(title), m_prompt(prompt)
 {
 	//{{AFX_DATA_INIT(CGroupName)
 	m_csName = _T("");
@@ -51,6 +51,11 @@ void CGroupName::OnOK()
 BOOL CGroupName::OnInitDialog() 
 {
 	CDialog::OnInitDialog();
+
+	SetWindowText(theApp.m_Language.GetString(m_title, m_title));
+	SetDlgItemText(IDC_STATIC_NAME, theApp.m_Language.GetString(m_prompt, m_prompt));
+	SetDlgItemText(IDOK, theApp.m_Language.GetString(_T("OK"), _T("OK")));
+	SetDlgItemText(IDCANCEL, theApp.m_Language.GetString(_T("Cancel"), _T("Cancel")));
 
 	CWnd *pWnd = GetDlgItem(IDC_NAME);
 	if(pWnd)

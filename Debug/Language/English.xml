@@ -109,7 +109,7 @@
 		<Item English_Text = "Move To Top" ID = "32908"></Item>	
 		<Item English_Text = "Move Up" ID = "32906"></Item>	
 		<Item English_Text = "Move Down" ID = "32907"></Item>			
-		<Item English_Text = "Export Clip(s) to Image File" ID = "32902"></Item>	
+		<Item English_Text = "Export Clip(s) to Image File(s)" ID = "32902"></Item>
 		<Item English_Text = "Export to Google Translate" ID = "32900"></Item>	
 		
 		<Item English_Text = "Search Options" ID = "-1"></Item>	
@@ -169,6 +169,12 @@
 		<Item English_Text = "View as HTML" ID = "32974"></Item>
 		<Item English_Text = "View as Image" ID = "32975"></Item>
 		
+		<!-- Clip context menu and related dialogs -->
+		<Item English_Text = "Go to Entry" ID = "33002"></Item>
+		<Item English_Text = "Paste new Guid" ID = "32998"></Item>
+		<Item English_Text = "Paste as Image" ID = "33001"></Item>
+		<Item English_Text = "Export to Web Search" ID = "32997"></Item>
+		<Item English_Text = "Posixify/Paths" ID = "32999"></Item>
 	</Ditto_Right_Click_Menu>
 	<Ditto_Clip_Properties>
 		<Item English_Text = "Hot Key" ID = "2039"></Item>
@@ -599,6 +605,18 @@
 		<Item English_Text = "New Script" ID = "New Script"></Item>
 		<Item English_Text = "returned false" ID = "returned false"></Item>
 		<Item English_Text = "Script returned true, canceling copy or paste" ID = "Script returned true, canceling copy or paste"></Item>
+		<!-- Clip context menu and related dialogs -->
+		<Item English_Text = "Ditto Utils" ID = "Ditto Utils"></Item>
+		<Item English_Text = "Paste Any Clip As Text" ID = "Paste Any Clip As Text"></Item>
+		<Item English_Text = "Paste As html image link" ID = "Paste As html image link"></Item>
+		<Item English_Text = "Clear read only flag" ID = "Clear read only flag"></Item>
+		<Item English_Text = "Set read only flag" ID = "Set read only flag"></Item>
+		<Item English_Text = "Send to Friend" ID = "Send to Friend"></Item>
+		<Item English_Text = "IP or Host Name" ID = "IP or Host Name"></Item>
+		<Item English_Text = "Add to &quot;Send To&quot; menu" ID = "Add to &quot;Send To&quot; menu"></Item>
+		<Item English_Text = "Clear Custom Send List" ID = "Clear Custom Send List"></Item>
+		<Item English_Text = "Set Drag File Name" ID = "Set Drag File Name"></Item>
+		<Item English_Text = "File Name" ID = "File Name"></Item>
 	</Ditto_String_Table>
 	<Ditto_Options_Sheet>
 		<Item English_Text = "OK" ID = "1"></Item>

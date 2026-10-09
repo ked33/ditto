@@ -56,6 +56,24 @@ BOOL CFriendPromptDlg::OnInitDialog()
 {
 	CDialogEx::OnInitDialog();
 
+	SetWindowText(theApp.m_Language.GetString(_T("Send to Friend"), _T("Send to Friend")));
+	const struct
+	{
+		int id;
+		LPCTSTR text;
+	} labels[] = {
+		{ IDC_STATIC_FRIEND_PROMPT, _T("IP or Host Name") },
+		{ IDC_STATIC_FRIEND_DESC, _T("Description") },
+		{ IDC_CHECK_SAVE, _T("Add to \"Send To\" menu") },
+		{ IDC_BUTTON_CLEAR, _T("Clear Custom Send List") },
+		{ IDOK, _T("OK") },
+		{ IDCANCEL, _T("Cancel") }
+	};
+	for (const auto& label : labels)
+	{
+		SetDlgItemText(label.id, theApp.m_Language.GetString(label.text, label.text));
+	}
+
 	::SendMessage(this->m_hWnd, WM_SETICON, 0, NULL);
 
 	m_brush.CreateSolidBrush(RGB(255, 255, 255)); // color white brush 

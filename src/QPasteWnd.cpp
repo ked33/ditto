@@ -2063,6 +2063,10 @@ void CQPasteWnd::ShowRightClickMenu()
 			cmSubMenu->CheckMenuItem(ID_MENU_SHOWSTARREDCLIPS, MF_CHECKED);
 		}
 
+		const auto& theme = CGetSetOptions::m_Theme;
+		PopupMenuColors colors = { theme.MainWindowBG(), theme.ListBoxEvenRowsText(),
+			theme.ListBoxSelectedBG(), theme.ListBoxSelectedText(), theme.Border() };
+		CThemedPopupMenu themedMenu(m_hWnd, cmSubMenu->GetSafeHmenu(), pp, colors);
 		cmSubMenu->TrackPopupMenu(TPM_LEFTALIGN | TPM_TOPALIGN | TPM_RIGHTBUTTON, pp.x, pp.y, this, NULL);
 	}
 }
@@ -3904,7 +3908,7 @@ bool CQPasteWnd::DoSetDragFileName()
 {
 	m_bHideWnd = false;
 
-	CGroupName Name;
+	CGroupName Name(this, _T("Set Drag File Name"), _T("File Name"));
 
 	CDimWnd dimmer(this);
 

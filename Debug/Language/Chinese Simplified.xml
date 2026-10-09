@@ -109,7 +109,7 @@
 		<Item English_Text = "Move To Top" ID = "32908">移至顶部</Item>	
 		<Item English_Text = "Move Up" ID = "32906">上移</Item>	
 		<Item English_Text = "Move Down" ID = "32907">下移</Item>	
-		<Item English_Text = "Export Clip(s) to Image File" ID = "-32902">将剪贴项导出为图像文件</Item>
+		<Item English_Text = "Export Clip(s) to Image File(s)" ID = "32902">导出剪贴项为图片文件</Item>
 		<Item English_Text = "Export to Google Translate" ID = "32900">导出到谷歌翻译</Item>	
 		
 		<Item English_Text = "Search Options" ID = "-1">搜索选项</Item>	
@@ -157,6 +157,12 @@
 		<Item English_Text = "Replace Top Sticky Clip" ID = "32938">替换固定到顶部</Item>
 		<Item English_Text = "Set Drag File Name" ID = "32970">设置拖拽文件名</Item>
 		
+		<!-- Clip context menu and related dialogs -->
+		<Item English_Text = "Go to Entry" ID = "33002">定位到剪贴项</Item>
+		<Item English_Text = "Paste new Guid" ID = "32998">粘贴新 GUID</Item>
+		<Item English_Text = "Paste as Image" ID = "33001">作为图片粘贴</Item>
+		<Item English_Text = "Export to Web Search" ID = "32997">导出到网页搜索</Item>
+		<Item English_Text = "Posixify/Paths" ID = "32999">转换为 POSIX 路径</Item>
 	</Ditto_Right_Click_Menu>
 	<Ditto_Clip_Properties>
 		<Item English_Text = "Hot Key" ID = "2039">热键</Item>
@@ -587,6 +593,18 @@
 		<Item English_Text = "New Script" ID = "New Script">新建脚本</Item>
 		<Item English_Text = "returned false" ID = "returned false">返回 false</Item>
 		<Item English_Text = "Script returned true, canceling copy or paste" ID = "Script returned true, canceling copy or paste">脚本返回 true，取消保存或粘贴</Item>
+		<!-- Clip context menu and related dialogs -->
+		<Item English_Text = "Ditto Utils" ID = "Ditto Utils">Ditto 实用工具</Item>
+		<Item English_Text = "Paste Any Clip As Text" ID = "Paste Any Clip As Text">将任意剪贴项作为文本粘贴</Item>
+		<Item English_Text = "Paste As html image link" ID = "Paste As html image link">粘贴为 HTML 图片链接</Item>
+		<Item English_Text = "Clear read only flag" ID = "Clear read only flag">清除只读标记</Item>
+		<Item English_Text = "Set read only flag" ID = "Set read only flag">设置只读标记</Item>
+		<Item English_Text = "Send to Friend" ID = "Send to Friend">发送给好友</Item>
+		<Item English_Text = "IP or Host Name" ID = "IP or Host Name">IP／主机名</Item>
+		<Item English_Text = "Add to &quot;Send To&quot; menu" ID = "Add to &quot;Send To&quot; menu">添加到“发送到”菜单</Item>
+		<Item English_Text = "Clear Custom Send List" ID = "Clear Custom Send List">清空自定义发送列表</Item>
+		<Item English_Text = "Set Drag File Name" ID = "Set Drag File Name">设置拖拽文件名</Item>
+		<Item English_Text = "File Name" ID = "File Name">文件名</Item>
 	</Ditto_String_Table>
 	<Ditto_Options_Sheet>
 		<Item English_Text = "OK" ID = "1">确定</Item>

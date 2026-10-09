@@ -81,13 +81,17 @@ bool CDittoAddins::AddPrePasteAddinsToMenu(CMenu *pMenu)
 		CDittoAddin *pAddin = m_Addins[i];
 		if(pAddin)
 		{
+			CString addinName = pAddin->DisplayName();
+			addinName = theApp.m_Language.GetString(addinName, addinName);
 			INT_PTR subCount = pAddin->m_PrePasteFunctions.size();
 			if(subCount > 1)
 			{
 				HMENU AddinMenu = ::CreateMenu();
 				for(int x = 0; x < subCount; x++)
 				{
-					::AppendMenu(AddinMenu, MF_ENABLED, nMenuId, pAddin->m_PrePasteFunctions[x].m_csDisplayName);
+					CString displayName = pAddin->m_PrePasteFunctions[x].m_csDisplayName;
+					displayName = theApp.m_Language.GetString(displayName, displayName);
+					::AppendMenu(AddinMenu, MF_ENABLED, nMenuId, displayName);
 
 					CFunctionLookup lookup;
 					lookup.m_csFunctionName = pAddin->m_PrePasteFunctions[x].m_csFunction;
@@ -96,7 +100,7 @@ bool CDittoAddins::AddPrePasteAddinsToMenu(CMenu *pMenu)
 					nMenuId++;
 				}
 
-				::AppendMenu(AllAddinsMenu, MF_ENABLED|MF_POPUP, (UINT_PTR)AddinMenu, pAddin->DisplayName());
+				::AppendMenu(AllAddinsMenu, MF_ENABLED|MF_POPUP, (UINT_PTR)AddinMenu, addinName);
 				bRet = true;
 			}
 			else if(subCount == 1)
@@ -107,8 +111,10 @@ bool CDittoAddins::AddPrePasteAddinsToMenu(CMenu *pMenu)
 				lookup.m_pAddin = pAddin;
 				m_FunctionMap.SetAt(nMenuId, lookup);
 
+				CString displayName = pAddin->m_PrePasteFunctions[0].m_csDisplayName;
+				displayName = theApp.m_Language.GetString(displayName, displayName);
 				CString menuName;
-				menuName.Format(_T("%s - %s"), pAddin->DisplayName(), pAddin->m_PrePasteFunctions[0].m_csDisplayName);
+				menuName.Format(_T("%s - %s"), addinName.GetString(), displayName.GetString());
 
 				::AppendMenu(AllAddinsMenu, MF_ENABLED, nMenuId, menuName);
 				bRet = true;

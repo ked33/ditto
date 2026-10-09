@@ -14,7 +14,7 @@ class CGroupName : public CDialog
 {
 // Construction
 public:
-	CGroupName(CWnd* pParent = NULL);   // standard constructor
+	CGroupName(CWnd* pParent = NULL, LPCTSTR title = _T("Ditto"), LPCTSTR prompt = _T("Name"));   // standard constructor
 
 // Dialog Data
 	//{{AFX_DATA(CGroupName)
@@ -32,6 +32,8 @@ public:
 
 // Implementation
 protected:
+	CString m_title;
+	CString m_prompt;
 
 	// Generated message map functions
 	//{{AFX_MSG(CGroupName)
