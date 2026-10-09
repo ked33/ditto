@@ -1299,7 +1299,7 @@ void CToolTipEx::OnOptions()
 			theme.DescriptionWindowBG(), theme.DescriptionWindowText(),
 			theme.ListBoxSelectedBG(), theme.ListBoxSelectedText(), theme.Border()
 		};
-		CThemedPopupMenu themedMenu(m_hWnd, cmSubMenu->GetSafeHmenu(), colors);
+		CThemedPopupMenu themedMenu(m_hWnd, cmSubMenu->GetSafeHmenu(), pp, colors);
 		cmSubMenu->TrackPopupMenu(TPM_LEFTALIGN | TPM_TOPALIGN | TPM_RIGHTBUTTON, pp.x, pp.y, this, NULL);
 	}
 }
