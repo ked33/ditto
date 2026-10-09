@@ -1076,6 +1076,7 @@ BOOL CQPasteWnd::ShowQPasteWindow(BOOL bFillList)
 
 	//Ensure we have the latest theme file, this checks the last write time so it doesn't read the file each time
 	CGetSetOptions::m_Theme.Load(CGetSetOptions::GetTheme(), false, true);
+	RefreshScrollBarColors();
 
 	SetCaptionColorActive(CGetSetOptions::m_bShowPersistent, theApp.GetConnectCV());
 	SetCaptionOn(CGetSetOptions::GetCaptionPos(), true, CGetSetOptions::m_Theme.GetCaptionSize(), CGetSetOptions::m_Theme.GetCaptionFontSize());

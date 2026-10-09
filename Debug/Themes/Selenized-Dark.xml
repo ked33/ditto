@@ -17,6 +17,10 @@
   <ListBoxSelectedNoFocusText>RGB(202, 216, 217)</ListBoxSelectedNoFocusText>
   <ListBoxSelectedText>RGB(202, 216, 217)</ListBoxSelectedText>
   <MainWindowBG>RGB(16, 60, 72)</MainWindowBG>
+
+  <ScrollBarTrack>RGB(16, 60, 72)</ScrollBarTrack>
+  <ScrollBarThumb>RGB(114, 137, 143)</ScrollBarThumb>
+  <ScrollBarThumbHover>RGB(173, 188, 188)</ScrollBarThumbHover>
   <SearchTextBoxFocusBG>RGB(114, 137, 143)</SearchTextBoxFocusBG>
   <SearchTextBoxFocusText>RGB(202, 216, 217)</SearchTextBoxFocusText>
   <!-- Set to magenta until visually noticed anywhere upon usage. -->

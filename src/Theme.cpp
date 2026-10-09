@@ -186,10 +186,27 @@ bool CTheme::Load(CString csTheme, bool bHeaderOnly, bool bCheckLastWriteTime)
 	LoadColor(ItemHeader, "DescriptionWindowBG", m_descriptionWindowBG);
 	LoadColor(ItemHeader, "DescriptionWindowText", m_descriptionWindowText);
 
-	// Modern scrollbar colors
-	LoadColor(ItemHeader, "ScrollBarThumb", m_scrollBarThumb);
-	LoadColor(ItemHeader, "ScrollBarThumbHover", m_scrollBarThumbHover);
-	LoadColor(ItemHeader, "ScrollBarTrack", m_scrollBarTrack);
+	// Older/custom themes may omit scrollbar colors. Derive them from the list
+	// palette so dark themes do not inherit the light LoadDefaults() colors.
+	auto blendColor = [](COLORREF background, COLORREF foreground, int percent) -> COLORREF
+	{
+		return RGB(
+			(GetRValue(background) * (100 - percent) + GetRValue(foreground) * percent) / 100,
+			(GetGValue(background) * (100 - percent) + GetGValue(foreground) * percent) / 100,
+			(GetBValue(background) * (100 - percent) + GetBValue(foreground) * percent) / 100);
+	};
+
+	m_scrollBarTrack = m_ListBoxEvenRowsBG;
+	if (ItemHeader->FirstChildElement("ScrollBarTrack") != NULL)
+		LoadColor(ItemHeader, "ScrollBarTrack", m_scrollBarTrack);
+
+	// Derive missing thumb colors from the effective track, including overrides.
+	m_scrollBarThumb = blendColor(m_scrollBarTrack, m_ListBoxEvenRowsText, 45);
+	m_scrollBarThumbHover = blendColor(m_scrollBarTrack, m_ListBoxEvenRowsText, 65);
+	if (ItemHeader->FirstChildElement("ScrollBarThumb") != NULL)
+		LoadColor(ItemHeader, "ScrollBarThumb", m_scrollBarThumb);
+	if (ItemHeader->FirstChildElement("ScrollBarThumbHover") != NULL)
+		LoadColor(ItemHeader, "ScrollBarThumbHover", m_scrollBarThumbHover);
 
 	if (followWindows10Theme)
 	{

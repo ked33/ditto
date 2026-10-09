@@ -37,6 +37,10 @@
 	<DescriptionWindowText>RGB(214, 221, 232)</DescriptionWindowText>
 	
 	<MainWindowBG>RGB(49, 55, 66)</MainWindowBG>
+
+	<ScrollBarTrack>RGB(49, 55, 66)</ScrollBarTrack>
+	<ScrollBarThumb>RGB(124, 167, 170)</ScrollBarThumb>
+	<ScrollBarThumbHover>RGB(214, 221, 232)</ScrollBarThumbHover>
 	
 	<SearchTextBoxFocusBG>RGB(46, 52, 64)</SearchTextBoxFocusBG>
 	<SearchTextBoxFocusText>RGB(214, 221, 232)</SearchTextBoxFocusText>

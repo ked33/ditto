@@ -40,6 +40,10 @@
 
   <MainWindowBG>RGB(24,24,24)</MainWindowBG>
 
+  <ScrollBarTrack>RGB(24,24,24)</ScrollBarTrack>
+  <ScrollBarThumb>RGB(119,119,119)</ScrollBarThumb>
+  <ScrollBarThumbHover>RGB(185,185,185)</ScrollBarThumbHover>
+
   <SearchTextBoxFocusBG>RGB(185,185,185)</SearchTextBoxFocusBG>
   <SearchTextBoxFocusText>RGB(24,24,24)</SearchTextBoxFocusText>
   <SearchTextBoxFocusBorder>RGB(59,59,59)</SearchTextBoxFocusBorder>

@@ -17,6 +17,10 @@
 	<ListBoxSelectedNoFocusText>RGB(34,34,34)</ListBoxSelectedNoFocusText>
 	<ClipPastedColor>RGB(112,125,182)</ClipPastedColor>
 	<MainWindowBG>RGB(187,187,187)</MainWindowBG>
+
+	<ScrollBarTrack>RGB(187,187,187)</ScrollBarTrack>
+	<ScrollBarThumb>RGB(136,136,136)</ScrollBarThumb>
+	<ScrollBarThumbHover>RGB(68,68,68)</ScrollBarThumbHover>
 	<SearchTextBoxFocusBG>RGB(221,221,221)</SearchTextBoxFocusBG>
 	<SearchTextBoxFocusText>RGB(34,34,34)</SearchTextBoxFocusText>
 	<SearchTextBoxFocusBorder>RGB(68,68,68)</SearchTextBoxFocusBorder>
