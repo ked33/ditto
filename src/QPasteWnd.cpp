@@ -1732,7 +1732,24 @@ BOOL CQPasteWnd::FillList(CString csSQLSearch)
 					csSQLSearch = fullTextSearch;
 				}
 
-				if (fullTextSearch.IsEmpty())
+				CString literalSearch(fullTextSearch);
+				literalSearch.Trim();
+				// Keep LIKE's existing '_' wildcard and all non-simple modes.
+				// Bound phrase complexity; longer inputs still search the full text.
+				const bool useLiteralIndex = CGetSetOptions::GetSimpleTextSearch() &&
+					!CGetSetOptions::GetRegExTextSearch() &&
+					!literalSearch.IsEmpty() && literalSearch.GetLength() <= 256 &&
+					literalSearch.Find(_T('_')) < 0;
+				if (useLiteralIndex)
+				{
+					// First quote an FTS phrase, then quote the SQL literal. This
+					// also makes MATCH operators, punctuation and '%' literal text.
+					literalSearch.Replace(_T("\""), _T("\"\""));
+					literalSearch.Replace(_T("'"), _T("''"));
+					searchSourceTable = _T("MainFullTextLiteralIndex");
+					fullTextSql.Format(_T("MainFullTextLiteralIndex MATCH '\"%s\"'"), literalSearch);
+				}
+				else if (fullTextSearch.IsEmpty())
 				{
 					fullTextSql = _T("(Search.fulltext <> '')");
 				}

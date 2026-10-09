@@ -14,6 +14,21 @@ namespace SearchIndexSql
 			"CREATE VIRTUAL TABLE IF NOT EXISTS MainFullTextIndex USING fts5("
 				"fulltext, content='MainFullTextCache', content_rowid='clipID', "
 				"tokenize='trigram', detail='none');",
+			// Positions let a quoted character phrase prove substring membership
+			// without reading the potentially multi-megabyte external content.
+			"CREATE VIRTUAL TABLE IF NOT EXISTS MainFullTextLiteralIndex USING fts5("
+				"fulltext, content='MainFullTextCache', content_rowid='clipID', "
+				"tokenize='ditto_char', detail='full');",
+			"CREATE TRIGGER IF NOT EXISTS MainFullTextLiteral_ai AFTER INSERT ON MainFullTextCache BEGIN "
+				"INSERT INTO MainFullTextLiteralIndex(rowid, fulltext) VALUES (new.clipID, new.fulltext); END;",
+			"CREATE TRIGGER IF NOT EXISTS MainFullTextLiteral_ad AFTER DELETE ON MainFullTextCache BEGIN "
+				"INSERT INTO MainFullTextLiteralIndex(MainFullTextLiteralIndex, rowid, fulltext) "
+				"VALUES('delete', old.clipID, old.fulltext); END;",
+			"CREATE TRIGGER IF NOT EXISTS MainFullTextLiteral_au AFTER UPDATE OF fulltext ON MainFullTextCache "
+				"WHEN old.fulltext IS NOT new.fulltext BEGIN "
+				"INSERT INTO MainFullTextLiteralIndex(MainFullTextLiteralIndex, rowid, fulltext) "
+				"VALUES('delete', old.clipID, old.fulltext); "
+				"INSERT INTO MainFullTextLiteralIndex(rowid, fulltext) VALUES (new.clipID, new.fulltext); END;",
 			"CREATE TRIGGER IF NOT EXISTS MainFullTextCache_ai AFTER INSERT ON MainFullTextCache BEGIN "
 				"INSERT INTO MainFullTextIndex(rowid, fulltext) VALUES (new.clipID, new.fulltext); END;",
 			"CREATE TRIGGER IF NOT EXISTS MainFullTextCache_ad AFTER DELETE ON MainFullTextCache BEGIN "

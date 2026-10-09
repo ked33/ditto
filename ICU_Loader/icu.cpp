@@ -47,6 +47,7 @@ SQLITE_EXTENSION_INIT1
 #include "sqlite3.h"
 #endif
 
+#include "CharacterTokenizer.h"
 
 URegexpFlag regexFlags = (URegexpFlag)0;
 
@@ -532,7 +533,7 @@ int brogden(sqlite3* db) {
       {"like",   3, SQLITE_UTF8 | SQLITEICU_EXTRAFLAGS,        0, icuLikeFunc},
   #endif /* !defined(SQLITE_CORE) || defined(SQLITE_ENABLE_ICU) */
     };
-    int rc = SQLITE_OK;
+    int rc = DittoCharacterTokenizer::Register(db);
     int i;
 
     for (i = 0; rc == SQLITE_OK && i < (int)(sizeof(scalars) / sizeof(scalars[0])); i++) {

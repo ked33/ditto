@@ -56,6 +56,7 @@ namespace SearchIndex
 			db.execDML(_T("BEGIN IMMEDIATE;"));
 			inTransaction = true;
 			const bool hadIndex = db.tableExists(_T("MainFullTextIndex"));
+			const bool hadLiteralIndex = db.tableExists(_T("MainFullTextLiteralIndex"));
 			for (const auto &sql : SearchIndexSql::SchemaStatementsUtf8())
 			{
 				db.execDML(ToCString(sql));
@@ -72,12 +73,19 @@ namespace SearchIndex
 			// triggers can safely run during a repair.
 			if (!hadIndex)
 				db.execDML(_T("INSERT INTO MainFullTextIndex(MainFullTextIndex) VALUES('rebuild');"));
+			if (!hadLiteralIndex)
+			{
+				Log(_T("SearchIndex - building character positions for literal full-text search"));
+				db.execDML(_T("INSERT INTO MainFullTextLiteralIndex(MainFullTextLiteralIndex) VALUES('rebuild');"));
+			}
 
 			const int mainCount = db.execScalar(_T("SELECT COUNT(*) FROM Main"));
 			const int cacheCount = db.execScalar(_T("SELECT COUNT(*) FROM MainFullTextCache"));
 			const bool missingIds = db.execScalar(_T("SELECT EXISTS(SELECT 1 FROM Main ")
 				_T("LEFT JOIN MainFullTextCache Cache ON Cache.clipID = Main.lID WHERE Cache.clipID IS NULL)")) != 0;
-			if (version != SearchIndexSql::kCurrentVersion || mainCount != cacheCount || missingIds)
+			// A valid v2 cache already holds the complete text. Only the new
+			// positional index needs building; do not reload the original BLOBs.
+			if (version < 2 || mainCount != cacheCount || missingIds)
 			{
 				if (version == 1 && db.tableExists(_T("MainSearchCache")) &&
 					db.execScalar(_T("SELECT COUNT(*) FROM MainSearchCache")) == mainCount &&

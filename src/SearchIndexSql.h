@@ -5,7 +5,7 @@
 
 namespace SearchIndexSql
 {
-	inline constexpr int kCurrentVersion = 2;
+	inline constexpr int kCurrentVersion = 3;
 
 	std::vector<std::string> SchemaStatementsUtf8();
 	std::vector<std::string> LegacyCleanupStatementsUtf8();

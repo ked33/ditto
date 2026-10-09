@@ -11,6 +11,7 @@ FILES = (
     "src/QPasteWndThread.cpp", "src/QPasteWndThread.h",
     "src/SearchIndex.cpp", "src/SearchIndexSql.cpp", "src/SearchIndexSql.h",
     "src/FormatSQL.cpp", "src/sqlite/CppSQLite3.cpp", "src/sqlite/CppSQLite3.h",
+    "ICU_Loader/CharacterTokenizer.h", "ICU_Loader/icu.cpp",
 )
 
 
@@ -58,6 +59,12 @@ def main():
     for stem in ("SearchIndex", "SearchIndexSql", "FormatSQL", "QPasteWndThread", "QPasteWnd"):
         assert any(path.endswith(stem + ".cpp") for path in compiled), stem
     print("MSBuild source registrations: passed")
+
+    for filename in ("ICU_Loader/ICU_Loader.vcxproj", "ICU_Loader/ICU_Loader.vcxproj.filters"):
+        loader = ET.parse(ROOT / filename)
+        headers = {item.attrib.get("Include") for item in loader.findall(".//m:ClInclude", namespace)}
+        assert "CharacterTokenizer.h" in headers, filename
+    print("ICU tokenizer project registrations: passed")
 
     header = (ROOT / "src/QPasteWndThread.h").read_text()
     implementation = (ROOT / "src/QPasteWndThread.cpp").read_text()

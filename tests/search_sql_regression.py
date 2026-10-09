@@ -5,6 +5,8 @@ Requires SQLite 3.34+ with FTS5/trigram (Python 3.12+ recommended).
 """
 
 import json
+import os
+import random
 import re
 import sqlite3
 import tempfile
@@ -33,7 +35,13 @@ def statements(function):
     return result
 
 
-SCHEMA = statements("SchemaStatementsUtf8")
+ICU_EXTENSION = os.environ.get("DITTO_ICU_EXTENSION")
+FULL_SCHEMA = statements("SchemaStatementsUtf8")
+# Without a compiled DLL, exercise the original cache/trigram SQL only. The
+# cloud build runs the entire production schema and the real C++ tokenizer.
+SCHEMA = FULL_SCHEMA if ICU_EXTENSION else [
+    sql for sql in FULL_SCHEMA if "MainFullTextLiteral" not in sql
+]
 CLEANUP = statements("LegacyCleanupStatementsUtf8")
 MIGRATE = statements("MigrateLegacyCacheUtf8")[0]
 
@@ -84,7 +92,7 @@ def migrate(db, fail_after_cleanup=False):
         execute_all(db, CLEANUP)
         if fail_after_cleanup:
             raise RuntimeError("injected failure before commit")
-        db.execute("UPDATE MainSearchMeta SET version=2")
+        db.execute("UPDATE MainSearchMeta SET version=3")
         db.commit()
     except Exception:
         db.rollback()
@@ -94,6 +102,11 @@ def migrate(db, fail_after_cleanup=False):
 class SearchSchemaTests(unittest.TestCase):
     def setUp(self):
         self.db = sqlite3.connect(":memory:")
+        if ICU_EXTENSION:
+            self.db.enable_load_extension(True)
+            self.db.execute("SELECT load_extension(?, 'sqlite3_icu_init')",
+                            (str(Path(ICU_EXTENSION).resolve()),))
+            self.db.enable_load_extension(False)
         self.db.executescript(MAIN_SCHEMA)
 
     def tearDown(self):
@@ -123,6 +136,11 @@ class SearchSchemaTests(unittest.TestCase):
             "INSERT INTO MainFullTextIndex(MainFullTextIndex,rank) "
             "VALUES('integrity-check',1)"
         )
+        if ICU_EXTENSION:
+            self.db.execute(
+                "INSERT INTO MainFullTextLiteralIndex(MainFullTextLiteralIndex,rank) "
+                "VALUES('integrity-check',1)"
+            )
 
     def test_schema_separates_description_and_fulltext(self):
         self.fresh()
@@ -203,7 +221,7 @@ class SearchSchemaTests(unittest.TestCase):
         self.assertEqual(list(self.db.execute("SELECT * FROM Main")), original_main)
         self.assertEqual(list(self.db.execute("SELECT * FROM Data")), original_data)
         self.assertEqual(self.matching("unique_suffix_at_end"), [1])
-        self.assertEqual(self.db.execute("SELECT version FROM MainSearchMeta").fetchone(), (2,))
+        self.assertEqual(self.db.execute("SELECT version FROM MainSearchMeta").fetchone(), (3,))
         self.assertFalse(list(self.db.execute(
             "SELECT name FROM sqlite_schema WHERE name IN ('MainSearchCache','MainSearchIndex')"
         )))
@@ -298,6 +316,126 @@ class SearchSchemaTests(unittest.TestCase):
             "SELECT lID FROM Main WHERE COALESCE(mText,'') NOT LIKE '%needle%' ORDER BY lID"
         )), [(1,), (3,)])
 
+    def literal_matches(self, text):
+        phrase = '"' + text.replace('"', '""') + '"'
+        return [row[0] for row in self.db.execute(
+            "SELECT rowid FROM MainFullTextLiteralIndex "
+            "WHERE MainFullTextLiteralIndex MATCH ? ORDER BY rowid", (phrase,))]
+
+    @unittest.skipUnless(ICU_EXTENSION, "requires the compiled ICU_Loader DLL")
+    def test_literal_phrases_match_icu_like_including_short_terms(self):
+        self.fresh()
+        bodies = [
+            "补充说明 demo no", "补 充 de mo n o", "DEMO NO démo",
+            "中文🙂🚀标点，符号！", "é e\u0301 É", "Σσς İıiI ßẞ ss KKk",
+            'a"b O\'Brien 100% C:\\demo\\no\\x',
+            "first\nsecond\tthird\r\nfourth", "AND OR NOT NEAR(foo) * : - ^",
+            "before\0after", "", "nono demodemo 补充补充",
+        ]
+        for clip_id, body in enumerate(bodies, 1):
+            self.add_clip(clip_id, "description", body)
+        terms = [
+            "补", "补充", "demo", "no", "n", "N", "de mo", "n o", "NO",
+            "🙂", "🙂🚀", "，", "é", "e\u0301", "Σ", "σ", "ς", "İ", "ı",
+            "i", "ß", "ẞ", "ss", "k", 'a"b', "O'Brien", "100%", "C:\\demo",
+            "\\no\\", "first\nsecond", "second\tthird", "\r\n", "AND OR", "*",
+            "NEAR(foo)", "before", "after", "补充补", "demod", "absent",
+        ]
+        for term in terms:
+            pattern = "%" + term.replace("\\", "\\\\").replace("%", "\\%") + "%"
+            expected = [row[0] for row in self.db.execute(
+                "SELECT clipID FROM MainFullTextCache WHERE fulltext LIKE ? "
+                "ESCAPE '\\' ORDER BY clipID", (pattern,))]
+            with self.subTest(term=term):
+                self.assertEqual(self.literal_matches(term), expected)
+        self.integrity()
+
+    @unittest.skipUnless(ICU_EXTENSION, "requires the compiled ICU_Loader DLL")
+    def test_literal_random_substrings_and_near_misses(self):
+        self.fresh()
+        rng = random.Random(173)
+        alphabet = '补充中文 demoNO🙂éΣ\n\t,.%"\''
+        bodies = ["".join(rng.choice(alphabet) for _ in range(100)) for _ in range(30)]
+        for clip_id, body in enumerate(bodies, 1):
+            self.add_clip(clip_id, "description", body)
+        for _ in range(100):
+            body = rng.choice(bodies)
+            start = rng.randrange(len(body) - 8)
+            term = body[start:start + rng.randrange(1, 9)]
+            pattern = "%" + term.replace("%", "\\%") + "%"
+            expected = [row[0] for row in self.db.execute(
+                "SELECT clipID FROM MainFullTextCache WHERE fulltext LIKE ? "
+                "ESCAPE '\\' ORDER BY clipID", (pattern,))]
+            self.assertEqual(self.literal_matches(term), expected)
+
+    @unittest.skipUnless(ICU_EXTENSION, "requires the compiled ICU_Loader DLL")
+    def test_literal_search_reads_no_external_body_and_keeps_article_end(self):
+        self.fresh()
+        body = "long article 中文 " * 300000 + "最后补充 demo no"
+        self.add_clip(1, "description", body)
+        self.db.commit()
+
+        def deny_content(action, table, column, database, trigger):
+            if action == sqlite3.SQLITE_READ and table == "MainFullTextCache":
+                return sqlite3.SQLITE_DENY
+            return sqlite3.SQLITE_OK
+
+        self.db.set_authorizer(deny_content)
+        try:
+            for term in ("补充", "demo", "no", "最后补充", "不存在"):
+                self.assertEqual(self.literal_matches(term), [] if term == "不存在" else [1])
+        finally:
+            self.db.set_authorizer(None)
+        self.assertEqual(self.db.execute("SELECT fulltext FROM MainFullTextCache").fetchone()[0], body)
+        self.integrity()
+
+    @unittest.skipUnless(ICU_EXTENSION, "requires the compiled ICU_Loader DLL")
+    def test_literal_insert_update_format_delete_and_main_delete(self):
+        self.fresh()
+        self.add_clip(1, "description", "补充 demo")
+        self.assertEqual(self.literal_matches("补充"), [1])
+        self.db.execute("UPDATE MainFullTextCache SET fulltext='no' WHERE clipID=1")
+        self.assertEqual(self.literal_matches("补充"), [])
+        self.assertEqual(self.literal_matches("no"), [1])
+        self.db.execute("INSERT INTO Data VALUES(1,1,'CF_UNICODETEXT',X'00')")
+        self.db.execute("DELETE FROM Data WHERE lID=1")
+        self.assertEqual(self.literal_matches("no"), [])
+        self.db.execute("UPDATE MainFullTextCache SET fulltext='demo' WHERE clipID=1")
+        self.db.execute("DELETE FROM Main WHERE lID=1")
+        self.assertEqual(self.literal_matches("demo"), [])
+        self.integrity()
+
+    @unittest.skipUnless(ICU_EXTENSION, "requires the compiled ICU_Loader DLL")
+    def test_v2_upgrade_rollback_and_missing_literal_index_repair(self):
+        execute_all(self.db, [sql for sql in FULL_SCHEMA if "MainFullTextLiteral" not in sql])
+        self.db.execute("UPDATE MainSearchMeta SET version=2")
+        self.add_clip(1, "description", "补充 demo no")
+        self.db.execute("INSERT INTO Data VALUES(1,1,'PNG',X'010203')")
+        self.db.commit()
+        original = list(self.db.execute("SELECT * FROM MainFullTextCache"))
+        for fail in (True, False):
+            self.db.execute("BEGIN IMMEDIATE")
+            execute_all(self.db, FULL_SCHEMA)
+            self.db.execute("INSERT INTO MainFullTextLiteralIndex(MainFullTextLiteralIndex) VALUES('rebuild')")
+            if fail:
+                self.db.rollback()
+                self.assertEqual(self.db.execute("SELECT version FROM MainSearchMeta").fetchone(), (2,))
+                self.assertFalse(list(self.db.execute(
+                    "SELECT name FROM sqlite_schema WHERE name='MainFullTextLiteralIndex'")))
+            else:
+                self.db.execute("UPDATE MainSearchMeta SET version=3")
+                self.db.commit()
+        self.assertEqual(list(self.db.execute("SELECT * FROM MainFullTextCache")), original)
+        self.assertEqual(self.db.execute("SELECT ooData FROM Data").fetchone(), (bytes([1, 2, 3]),))
+        self.assertEqual(self.literal_matches("补充"), [1])
+        self.db.execute("DROP TABLE MainFullTextLiteralIndex")
+        execute_all(self.db, FULL_SCHEMA)
+        self.db.execute("INSERT INTO MainFullTextLiteralIndex(MainFullTextLiteralIndex) VALUES('rebuild')")
+        self.db.execute("DELETE FROM MainFullTextCache")
+        self.db.execute("INSERT INTO MainFullTextCache VALUES(1,'repaired no')")
+        self.assertEqual(self.literal_matches("no"), [1])
+        self.integrity()
+
 
 class SearchCancellationTests(unittest.TestCase):
     def test_cancelled_reader_does_not_interrupt_writer_and_can_search_again(self):
@@ -350,4 +488,6 @@ class SearchCancellationTests(unittest.TestCase):
 
 
 if __name__ == "__main__":
+    print("SQLite", sqlite3.sqlite_version, "- compiled ICU" if ICU_EXTENSION else
+          "- cache/trigram tests only; literal-index tests skipped", flush=True)
     unittest.main(verbosity=2)

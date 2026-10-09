@@ -33,6 +33,15 @@ jobs:
       - name: Build 64bit
         run: msbuild ${{ env.SOLUTION_FILE_PATH }} /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=${{ env.CI_PLATFORM_TOOLSET }}
 
+      - name: Verify full-text search with compiled ICU tokenizer
+        shell: pwsh
+        run: |
+          $env:DITTO_ICU_EXTENSION = (Resolve-Path .\Release64\ICU_Loader.dll).Path
+          python tests/search_static_checks.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python tests/search_sql_regression.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Resolve latest release version
         shell: pwsh
         run: |
