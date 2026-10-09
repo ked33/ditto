@@ -14,6 +14,27 @@ namespace
 	int initCount = 0;
 	int commandCount = 0;
 	HMENU root = NULL;
+	wchar_t tooltipSample[] = L"Clipboard text\r\nDatabase ID: 123";
+
+	struct ToolTipProbe
+	{
+		COLORREF background = 0;
+		COLORREF text = 0;
+		int textRequests = 0;
+		int themeChanges = 0;
+		int backgroundWrites = 0;
+		int textWrites = 0;
+	};
+
+	LRESULT CALLBACK ToolTipProbeProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam,
+		UINT_PTR, DWORD_PTR reference)
+	{
+		auto& probe = *reinterpret_cast<ToolTipProbe*>(reference);
+		if (message == WM_THEMECHANGED) ++probe.themeChanges;
+		if (message == TTM_SETTIPBKCOLOR) ++probe.backgroundWrites;
+		if (message == TTM_SETTIPTEXTCOLOR) ++probe.textWrites;
+		return DefSubclassProc(window, message, wParam, lParam);
+	}
 
 	MENUITEMINFOW Info(HMENU menu, UINT position)
 	{
@@ -36,6 +57,16 @@ namespace
 
 	LRESULT CALLBACK OwnerProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam)
 	{
+		if (message == WM_NOTIFY && reinterpret_cast<NMHDR*>(lParam)->code == TTN_GETDISPINFOW)
+		{
+			auto* info = reinterpret_cast<NMTTDISPINFOW*>(lParam);
+			auto& probe = *reinterpret_cast<ToolTipProbe*>(info->lParam);
+			++probe.textRequests;
+			// Match the native hover tooltip's existing text callback in QListCtrl.
+			ApplyNativeToolTipTheme(info->hdr.hwndFrom, probe.background, probe.text);
+			info->lpszText = tooltipSample;
+			return 0;
+		}
 		if (message == WM_INITMENUPOPUP)
 		{
 			++initCount;
@@ -67,34 +98,52 @@ namespace
 		HWND tip = CreateWindowExW(0, TOOLTIPS_CLASSW, L"", WS_POPUP | TTS_ALWAYSTIP,
 			0, 0, 300, 100, owner, NULL, GetModuleHandleW(NULL), NULL);
 		assert(tip);
+		ToolTipProbe probe;
+		assert(SetWindowSubclass(tip, ToolTipProbeProc, 1, reinterpret_cast<DWORD_PTR>(&probe)));
 		SendMessageW(tip, TTM_SETMAXTIPWIDTH, 0, 500);
 		SendMessageW(tip, TTM_SETDELAYTIME, TTDT_AUTOPOP, 7000);
-		wchar_t sample[] = L"Clipboard text\r\nDatabase ID: 123";
 		TOOLINFOW tool = { sizeof(tool) };
 		tool.hwnd = owner;
 		tool.uId = 1;
 		tool.rect = {0, 0, 300, 100};
-		tool.lpszText = sample;
+		tool.lpszText = LPSTR_TEXTCALLBACKW;
+		tool.lParam = reinterpret_cast<LPARAM>(&probe);
 		assert(SendMessageW(tip, TTM_ADDTOOLW, 0, reinterpret_cast<LPARAM>(&tool)));
-
-		for (const auto& palette : std::vector<PopupMenuColors>{
-			{RGB(40, 42, 54), RGB(248, 248, 242), 0, 0, 0},
-			{RGB(255, 255, 225), RGB(25, 25, 25), 0, 0, 0}})
+		auto readText = [&]()
 		{
-			ApplyNativeToolTipTheme(tip, palette.background, palette.text);
-			assert(GetWindowTheme(tip) == NULL);
-			assert(SendMessageW(tip, TTM_GETTIPBKCOLOR, 0, 0) == palette.background);
-			assert(SendMessageW(tip, TTM_GETTIPTEXTCOLOR, 0, 0) == palette.text);
-			assert(SendMessageW(tip, TTM_GETMAXTIPWIDTH, 0, 0) == 500);
-			assert(SendMessageW(tip, TTM_GETDELAYTIME, TTDT_AUTOPOP, 0) == 7000);
 			wchar_t text[100] = {};
 			tool.lpszText = text;
 			SendMessageW(tip, TTM_GETTEXTW, 100, reinterpret_cast<LPARAM>(&tool));
-			assert(std::wstring(text) == sample);
+			assert(std::wstring(text) == tooltipSample);
+		};
+
+		for (const auto& palette : std::vector<PopupMenuColors>{
+			{RGB(40, 42, 54), RGB(248, 248, 242), 0, 0, 0},
+			{RGB(255, 255, 225), RGB(25, 25, 25), 0, 0, 0},
+			{RGB(40, 42, 54), RGB(248, 248, 242), 0, 0, 0}})
+		{
+			probe.background = palette.background;
+			probe.text = palette.text;
+			readText();
+			assert(GetWindowTheme(tip) == NULL);
+			assert(SendMessageW(tip, TTM_GETTIPBKCOLOR, 0, 0) == palette.background);
+			assert(SendMessageW(tip, TTM_GETTIPTEXTCOLOR, 0, 0) == palette.text);
+			assert(ValidateRect(tip, NULL));
+			const auto before = probe;
+			for (int repeat = 0; repeat < 1000; ++repeat)
+				readText();
+			assert(probe.textRequests == before.textRequests + 1000);
+			assert(probe.themeChanges == before.themeChanges);
+			assert(probe.backgroundWrites == before.backgroundWrites);
+			assert(probe.textWrites == before.textWrites);
+			assert(!GetUpdateRect(tip, NULL, FALSE));
+			assert(SendMessageW(tip, TTM_GETMAXTIPWIDTH, 0, 0) == 500);
+			assert(SendMessageW(tip, TTM_GETDELAYTIME, TTDT_AUTOPOP, 0) == 7000);
 		}
+		assert(RemoveWindowSubclass(tip, ToolTipProbeProc, 1));
 		DestroyWindow(tip);
 		ApplyNativeToolTipTheme(NULL, 0, 0);
-		puts("PASS: native hover tooltip colors, visual-style override, light/dark refresh, text and timing");
+		puts("PASS: native hover tooltip colors, 3000 text callbacks without theme/color writes or invalidation, text and timing");
 	}
 
 	void CheckMnemonic(HWND owner, HMENU menu, wchar_t key, UINT position, UINT action)

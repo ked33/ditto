@@ -11,10 +11,11 @@ inline void ApplyNativeToolTipTheme(HWND tooltip, COLORREF background, COLORREF 
 	if (!IsWindow(tooltip))
 		return;
 
-	// Visual styles ignore TTM_SETTIPBKCOLOR/TTM_SETTIPTEXTCOLOR. Disable the
-	// style on this native tooltip before supplying the application palette.
-	SetWindowTheme(tooltip, L"", L"");
-	SendMessage(tooltip, TTM_SETTIPBKCOLOR, background, 0);
-	SendMessage(tooltip, TTM_SETTIPTEXTCOLOR, text, 0);
-	InvalidateRect(tooltip, NULL, TRUE);
+	// Active visual styles ignore custom colors. Disable them only when present.
+	if (GetWindowTheme(tooltip) != NULL)
+		SetWindowTheme(tooltip, L"", L"");
+	if (static_cast<COLORREF>(SendMessage(tooltip, TTM_GETTIPBKCOLOR, 0, 0)) != background)
+		SendMessage(tooltip, TTM_SETTIPBKCOLOR, background, 0);
+	if (static_cast<COLORREF>(SendMessage(tooltip, TTM_GETTIPTEXTCOLOR, 0, 0)) != text)
+		SendMessage(tooltip, TTM_SETTIPTEXTCOLOR, text, 0);
 }
