@@ -283,6 +283,7 @@ BEGIN_MESSAGE_MAP(CQPasteWnd, CWndEx)
 	ON_MESSAGE(NM_INACTIVE_TOOLTIPWND, OnToolTipWndInactive)
 	ON_MESSAGE(NM_SET_LIST_COUNT, OnSetListCount)
 	ON_MESSAGE(NM_REFRESH_ROW, OnRefeshRow)
+	ON_MESSAGE(NM_SEARCH_RESULTS_READY, OnSearchResultsReady)
 	ON_MESSAGE(NM_ITEM_DELETED, OnItemDeleted)
 	ON_WM_TIMER()
 	ON_COMMAND(ID_MENU_EXPORT, OnMenuExport)
@@ -985,11 +986,7 @@ BOOL CQPasteWnd::HideQPasteWindow(bool releaseFocus, BOOL clearSearchData)
 		Log(_T("End of HideQPasteWindow, !theApp.m_bShowingQuickPaste"));
 	}
 
-	{
-		ATL::CCritSecLock csLock(m_CritSection.m_sect);
-
-		m_bStopQuery = true;
-	}
+	CancelPendingSearch();
 
 	theApp.m_bShowingQuickPaste = false;
 
@@ -1001,6 +998,7 @@ BOOL CQPasteWnd::HideQPasteWindow(bool releaseFocus, BOOL clearSearchData)
 	}
 
 	KillTimer(TIMER_FILL_CACHE);
+	KillTimer(TIMER_DO_SEARCH);
 
 	m_lstHeader.HidePopup(true);
 
@@ -1028,15 +1026,6 @@ BOOL CQPasteWnd::HideQPasteWindow(bool releaseFocus, BOOL clearSearchData)
 
 		if (m_strSQLSearch.IsEmpty() == FALSE || m_pendingRefresh)
 		{
-			{
-				ATL::CCritSecLock csLock(m_CritSection.m_sect);
-
-				m_bStopQuery = true;
-			}
-
-			//Wait for the thread to stop fill the cache so we can clear it
-			WaitForSingleObject(m_thread.m_SearchingEvent, 5000);
-
 			{
 				ATL::CCritSecLock csLock(m_CritSection.m_sect);
 
@@ -1107,7 +1096,14 @@ BOOL CQPasteWnd::ShowQPasteWindow(BOOL bFillList)
 	}
 	else
 	{
+		CString search;
+		m_search.GetWindowText(search);
+		if (search != m_lastSearchText)
+			FillList(search);
+		else
+			m_thread.ResumeSearch();
 		MoveControls();
+		m_lstHeader.Invalidate();
 	}
 
 	RefreshChromeButtonBackgrounds();
@@ -1462,8 +1458,7 @@ LRESULT CQPasteWnd::OnRefreshView(WPARAM wParam, LPARAM lParam)
 	}
 	else
 	{
-		//Wait for the thread to stop fill the cache so we can clear it
-		WaitForSingleObject(m_thread.m_SearchingEvent, 5000);
+		CancelPendingSearch();
 
 		{
 			ATL::CCritSecLock csLock(m_CritSection.m_sect);
@@ -1561,6 +1556,7 @@ void CQPasteWnd::UpdateStatus(bool bRepaintImmediately)
 BOOL CQPasteWnd::FillList(CString csSQLSearch)
 {
 	KillTimer(TIMER_DO_SEARCH);
+	m_lastSearchText = csSQLSearch;
 
 	m_lstHeader.HidePopup(true);
 
@@ -1568,10 +1564,7 @@ BOOL CQPasteWnd::FillList(CString csSQLSearch)
 
 	m_lstHeader.SetSearchText(csSQLSearch);
 
-	{
-		ATL::CCritSecLock csLock(m_CritSection.m_sect);
-		m_bStopQuery = true;
-	}
+	CancelPendingSearch();
 
 	CString strFilter;
 	CString strParentFilter;
@@ -1680,7 +1673,7 @@ BOOL CQPasteWnd::FillList(CString csSQLSearch)
 		if (SearchIndex::IsReady())
 		{
 			const bool useIndexedSearch = (CGetSetOptions::GetRegExTextSearch() == FALSE);
-			CString searchSourceTable = useIndexedSearch ? _T("MainSearchIndex Search") : _T("MainSearchCache Search");
+			CString searchSourceTable = useIndexedSearch ? _T("MainFullTextIndex Search") : _T("MainFullTextCache Search");
 
 			CFormatSQL descriptionFormat;
 			CString descriptionSql;
@@ -1693,7 +1686,7 @@ BOOL CQPasteWnd::FillList(CString csSQLSearch)
 				(CGetSetOptions::GetSearchDescription() ||
 					(CGetSetOptions::GetSearchFullText() == FALSE && CGetSetOptions::GetSearchQuickPaste() == FALSE)))
 			{
-				descriptionFormat.SetVariable(_T("Search.description"));
+				descriptionFormat.SetVariable(_T("COALESCE(Main.mText, '')"));
 				descriptionFormat.Parse(csSQLSearch);
 				descriptionSql = descriptionFormat.GetSQLString();
 			}
@@ -1711,14 +1704,14 @@ BOOL CQPasteWnd::FillList(CString csSQLSearch)
 
 				if (quickPasteSearch.IsEmpty())
 				{
-					quickPasteSql = _T("(Search.quickpaste <> '')");
+					quickPasteSql = _T("(Main.QuickPasteText <> '')");
 				}
 				else
 				{
-					quickPasteFormat.SetVariable(_T("Search.quickpaste"));
+					quickPasteFormat.SetVariable(_T("COALESCE(Main.QuickPasteText, '')"));
 					quickPasteFormat.Parse(quickPasteSearch);
 					quickPasteSql = quickPasteFormat.GetSQLString();
-					quickPasteSql.Insert(1, _T("Search.quickpaste <> '' AND "));
+					quickPasteSql.Insert(1, _T("Main.QuickPasteText <> '' AND "));
 				}
 
 				if (bQuickPastePrefixSearch)
@@ -1752,6 +1745,15 @@ BOOL CQPasteWnd::FillList(CString csSQLSearch)
 				}
 			}
 
+			// Keep the full-text subquery independent of description/quick-paste ORs.
+			// Those small fields are searched directly, including one/two-character terms.
+			if (fullTextSql.IsEmpty() == FALSE)
+			{
+				CString fullTextIds;
+				fullTextIds.Format(_T("Main.lID IN (SELECT rowid FROM %s WHERE %s)"), searchSourceTable, fullTextSql);
+				fullTextSql = fullTextIds;
+			}
+
 			CString searchFilter = _T("(");
 
 			if (descriptionSql != _T(""))
@@ -1782,7 +1784,7 @@ BOOL CQPasteWnd::FillList(CString csSQLSearch)
 
 			searchFilter += _T(")");
 
-			strFilter.Format(_T("Main.lID IN (SELECT rowid FROM %s WHERE %s)"), searchSourceTable, searchFilter);
+			strFilter = searchFilter;
 
 			AppendAndSearchFilter(strFilter, clipboardFormatFilterSql);
 
@@ -1937,10 +1939,12 @@ BOOL CQPasteWnd::FillList(CString csSQLSearch)
 	m_lstHeader.SetItemCount(0);
 	m_lstHeader.RefreshVisibleRows();
 
-	CPoint loadItem(-1, m_lstHeader.GetCountPerPage() + 2);
-	m_loadItems.push_back(loadItem);
+	m_thread.SetSearchSql(sql, countSql, theApp.m_db.databasePath());
+	{
+		ATL::CCritSecLock csLock(m_CritSection.m_sect);
+		m_loadItems.push_back(CPoint(-1, m_lstHeader.GetCountPerPage() + 2));
+	}
 
-	m_thread.SetSearchSql(sql, countSql);
 	m_thread.FireLoadItems(true);
 
 	MoveControls();
@@ -6504,24 +6508,28 @@ void CQPasteWnd::OnMenuShowStarredClips()
 	FillList(csText);
 }
 
+void CQPasteWnd::CancelPendingSearch()
+{
+	m_thread.CancelSearch();
+	ATL::CCritSecLock lock(m_CritSection.m_sect);
+	m_loadItems.clear();
+}
+
 void CQPasteWnd::OnSearchEditChange()
 {
 	m_search.Invalidate();
-	if (CGetSetOptions::m_bFindAsYouType == FALSE)
-	{
+	if (!m_bHandleSearchTextChange)
 		return;
-	}
 
-	if (m_bHandleSearchTextChange == false)
-	{
-		//Log(_T("Handle text change is NOT set"));
-		return;
-	}
-
+	// Invalidate results immediately, not after the debounce timer fires.
+	CancelPendingSearch();
 	KillTimer(TIMER_DO_SEARCH);
-	SetTimer(TIMER_DO_SEARCH, 250, NULL);
+	if (CGetSetOptions::m_bFindAsYouType == FALSE)
+		return;
 
-	return;
+	CString search;
+	m_search.GetWindowText(search);
+	SetTimer(TIMER_DO_SEARCH, search.IsEmpty() ? 1 : 150, NULL);
 }
 
 LRESULT CQPasteWnd::OnUpDown(WPARAM wParam, LPARAM lParam)
@@ -6667,6 +6675,10 @@ void CQPasteWnd::OnUpdateMenuNewclip(CCmdUI* pCmdUI)
 
 LRESULT CQPasteWnd::OnSetListCount(WPARAM wParam, LPARAM lParam)
 {
+	if (!m_thread.IsCurrentSearch(static_cast<UINT_PTR>(lParam)))
+		return 0;
+	m_thread.AcknowledgeListCount(static_cast<UINT_PTR>(lParam));
+
 	m_noSearchResults = false;
 
 	int x = m_lstHeader.GetScrollPos(SB_HORZ);
@@ -6703,6 +6715,21 @@ LRESULT CQPasteWnd::OnItemDeleted(WPARAM wParam, LPARAM lParam)
 {
 	m_lstHeader.OnItemDeleted((int)wParam);
 	return TRUE;
+}
+
+LRESULT CQPasteWnd::OnSearchResultsReady(WPARAM wParam, LPARAM lParam)
+{
+	if (!m_thread.IsCurrentSearch(static_cast<UINT_PTR>(wParam)))
+		return 0;
+	if (lParam != 0)
+		OnRefeshRow(static_cast<WPARAM>(-2), 0);
+	else
+		m_lstHeader.Invalidate();
+	const int firstRow = m_lstHeader.GetTopIndex();
+	const int endRow = min(m_lstHeader.GetItemCount(), firstRow + m_lstHeader.GetCountPerPage() + 1);
+	for (int row = firstRow; row < endRow; ++row)
+		m_lstHeader.PostEventLoadedCheckDescription(row);
+	return 0;
 }
 
 LRESULT CQPasteWnd::OnRefeshRow(WPARAM wParam, LPARAM lParam)
@@ -6787,9 +6814,10 @@ void CQPasteWnd::OnDestroy()
 {
 	CGetSetOptions::SetPastSearchXml(m_search.SavePastSearches());
 
-	CWndEx::OnDestroy();
+	CancelPendingSearch();
 	m_thread.Stop();
 	m_extraDataThread.Stop();
+	CWndEx::OnDestroy();
 }
 
 void CQPasteWnd::OnTimer(UINT_PTR nIDEvent)

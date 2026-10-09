@@ -23,6 +23,8 @@ CQPasteWndThread::CQPasteWndThread(void)
 
 CQPasteWndThread::~CQPasteWndThread(void)
 {
+    CancelSearch();
+    Stop();
     CloseHandle(m_SearchingEvent);
 }
 
@@ -58,182 +60,261 @@ void CQPasteWndThread::OnEvent(int eventId, void *param)
 	Log(StrF(_T("End of OnEvent, eventId: %s, Time: %d(ms)"), EnumName((eCQPasteWndThreadEvents)eventId), length));
 }
 
-void CQPasteWndThread::OnSetListCount(void *param)
+void CQPasteWndThread::CancelSearch()
 {
-    CQPasteWnd *pasteWnd = (CQPasteWnd*)param;
+    {
+        ATL::CCritSecLock lock(m_requestLock.m_sect);
+        ++m_generation;
+        // Keep the query for reopening a preserved search view; its old
+        // generation remains invalid until ResumeSearch is called explicitly.
+        m_countGeneration = 0;
+        SetEvent(m_SearchingEvent);
+    }
+    {
+        // Interrupt only the dedicated reader, never clipboard writes.
+        ATL::CCritSecLock lock(m_connectionLock.m_sect);
+        m_searchDb.interrupt();
+    }
+}
 
-    static CEvent UpdateTimeEvent(TRUE, TRUE, _T("Ditto_Update_Clip_Time"), NULL);
-    //If we pasted then wait for the time on the pasted event to be updated before we query the db
-    DWORD dRet = WaitForSingleObject(UpdateTimeEvent, 2000);
+void CQPasteWndThread::SetSearchSql(const CString& sql, const CString& countSql, const CString& databasePath)
+{
+    ATL::CCritSecLock lock(m_requestLock.m_sect);
+    m_request.sql = sql;
+    m_request.countSql = countSql;
+    m_request.databasePath = databasePath;
+    m_request.generation = m_generation.load();
+    m_request.busyTimeout = CGetSetOptions::GetDbTimeout();
+    m_request.countNeeded = true;
+    m_countGeneration = 0;
+}
 
-    ResetEvent(m_SearchingEvent);
-    long lTick = GetTickCount();
+void CQPasteWndThread::FireLoadItemsRequest()
+{
+    ATL::CCritSecLock lock(m_requestLock.m_sect);
+    if (!m_request.sql.IsEmpty() && IsCurrentSearch(m_request.generation))
+    {
+        ResetEvent(m_SearchingEvent);
+        FireEvent(LOAD_ITEMS);
+    }
+}
 
-	CString countSQL = m_countSql;
+void CQPasteWndThread::AcknowledgeListCount(UINT_PTR generation)
+{
+    ATL::CCritSecLock lock(m_requestLock.m_sect);
+    if (IsCurrentSearch(generation))
+        m_request.countNeeded = false;
+}
 
-    long lRecordCount = 0;
+void CQPasteWndThread::ResumeSearch()
+{
+    ATL::CCritSecLock lock(m_requestLock.m_sect);
+    if (m_request.sql.IsEmpty() || IsCurrentSearch(m_request.generation))
+        return;
+    m_request.generation = m_generation.load();
+    if (m_request.countNeeded)
+    {
+        m_countGeneration = m_request.generation;
+        ResetEvent(m_SearchingEvent);
+        FireSetListCount();
+    }
+}
 
+CQPasteWndThread::SearchRequest CQPasteWndThread::GetSearchRequest()
+{
+    ATL::CCritSecLock lock(m_requestLock.m_sect);
+    return m_request;
+}
+
+CQPasteWndThread::SearchConnection::SearchConnection(CQPasteWndThread& owner, const SearchRequest& request) :
+    m_owner(owner), m_open(owner.BeginSearchConnection(request))
+{
+}
+
+CQPasteWndThread::SearchConnection::~SearchConnection()
+{
+    if (m_open)
+        m_owner.EndSearchConnection();
+}
+
+bool CQPasteWndThread::BeginSearchConnection(const SearchRequest& request)
+{
+    ATL::CCritSecLock lock(m_connectionLock.m_sect);
+    if (!IsCurrentSearch(request.generation))
+        return false;
+    m_runningGeneration = request.generation;
+    m_busyTimeout = request.busyTimeout;
     try
     {
-        lRecordCount = theApp.m_db.execScalar(countSQL);
-        ::PostMessage(pasteWnd->m_hWnd, NM_SET_LIST_COUNT, lRecordCount, 0);
+        // Reopen per batch to release read locks and follow database replacement.
+        m_searchDb.open(request.databasePath, true);
+        m_searchDb.setProgressHandler(1000, SearchProgress, this);
+        m_searchDb.setBusyHandler(SearchBusy, this);
     }
-    CATCH_SQLITE_EXCEPTION 
+    catch (...)
+    {
+        m_searchDb.close();
+        throw;
+    }
+    return true;
+}
 
-    SetEvent(m_SearchingEvent);
+void CQPasteWndThread::EndSearchConnection()
+{
+    ATL::CCritSecLock lock(m_connectionLock.m_sect);
+    m_searchDb.setProgressHandler(0, nullptr, nullptr);
+    m_searchDb.setBusyHandler(nullptr, nullptr);
+    m_searchDb.close();
+}
 
-    Log(StrF(_T("Set list count = %d, time = %d"), lRecordCount, GetTickCount() - lTick));
+int CQPasteWndThread::SearchProgress(void* context)
+{
+    auto thread = static_cast<CQPasteWndThread*>(context);
+    return !thread->IsCurrentSearch(thread->m_runningGeneration);
+}
+
+int CQPasteWndThread::SearchBusy(void* context, int attempts)
+{
+    auto thread = static_cast<CQPasteWndThread*>(context);
+    if (SearchProgress(context) || static_cast<ULONGLONG>(attempts) * 10 >= thread->m_busyTimeout)
+        return 0;
+    Sleep(10);
+    return !SearchProgress(context);
+}
+
+void CQPasteWndThread::FinishSearch(UINT_PTR generation)
+{
+    ATL::CCritSecLock lock(m_requestLock.m_sect);
+    if (IsCurrentSearch(generation) && m_countGeneration != generation)
+        SetEvent(m_SearchingEvent);
+}
+
+void CQPasteWndThread::OnSetListCount(void *param)
+{
+    CQPasteWnd* pasteWnd = static_cast<CQPasteWnd*>(param);
+    const SearchRequest request = GetSearchRequest();
+    {
+        ATL::CCritSecLock lock(m_requestLock.m_sect);
+        if (!IsCurrentSearch(request.generation) || m_countGeneration != request.generation)
+            return;
+    }
+
+    // Visible pages take precedence over an exact total.
+    OnLoadItems(param);
+    if (!IsCurrentSearch(request.generation))
+        return;
+
+    static CEvent updateTimeEvent(TRUE, TRUE, _T("Ditto_Update_Clip_Time"), NULL);
+    const DWORD waitStart = GetTickCount();
+    while (IsCurrentSearch(request.generation) &&
+        WaitForSingleObject(updateTimeEvent, 20) == WAIT_TIMEOUT &&
+        GetTickCount() - waitStart < 2000) {}
+    if (!IsCurrentSearch(request.generation))
+        return;
+
+    const DWORD start = GetTickCount();
+    try
+    {
+        SearchConnection connection(*this, request);
+        if (connection)
+        {
+            const int count = m_searchDb.execScalar(request.countSql);
+            ATL::CCritSecLock lock(m_requestLock.m_sect);
+            if (IsCurrentSearch(request.generation))
+            {
+                ::PostMessage(pasteWnd->m_hWnd, NM_SET_LIST_COUNT, count, static_cast<LPARAM>(request.generation));
+            }
+        }
+    }
+    catch (CppSQLite3Exception& e)
+    {
+        if (IsCurrentSearch(request.generation) && e.errorCode() != SQLITE_INTERRUPT)
+            Log(StrF(_T("Search count failed, SQLite code: %d"), e.errorCode()));
+    }
+    {
+        ATL::CCritSecLock lock(m_requestLock.m_sect);
+        if (m_countGeneration == request.generation)
+            m_countGeneration = 0;
+    }
+    FinishSearch(request.generation);
+    Log(StrF(_T("Search count completed in %d ms"), GetTickCount() - start));
 }
 
 void CQPasteWndThread::OnLoadItems(void *param)
 {
-    CQPasteWnd *pasteWnd = (CQPasteWnd*)param;
+    CQPasteWnd* pasteWnd = static_cast<CQPasteWnd*>(param);
+    const SearchRequest request = GetSearchRequest();
+    if (request.sql.IsEmpty() || !IsCurrentSearch(request.generation))
+        return;
 
-    ResetEvent(m_SearchingEvent);
+    const DWORD start = GetTickCount();
+    try
+    {
+        SearchConnection connection(*this, request);
+        if (!connection)
+            return;
+        while (IsCurrentSearch(request.generation))
+        {
+            CPoint range;
+            {
+                ATL::CCritSecLock lock(pasteWnd->m_CritSection.m_sect);
+                if (!IsCurrentSearch(request.generation) || pasteWnd->m_loadItems.empty())
+                    break;
+                range = pasteWnd->m_loadItems.front();
+            }
+            const bool firstLoad = range.x == -1;
+            const int firstRow = max(range.x, 0);
+            const int rowCount = max(range.y - range.x, 0);
+            CString sql = request.sql;
+            sql += StrF(_T(" LIMIT %d OFFSET %d"), rowCount, firstRow);
 
-	while(true)
-	{
-		long startTick = GetTickCount();
-	    int loadItemsIndex = 0;
-	    int loadItemsCount = 0;
-	    int loadCount = 0;
-		CString localSql = m_sql;
-	    bool clearFirstLoadItem = false;
-		bool firstLoad = false;
-		int listSize = 0;
-
-		{
-			ATL::CCritSecLock csLock(pasteWnd->m_CritSection.m_sect);
-
-		    if(pasteWnd->m_loadItems.size() > 0)
-		    {
-				firstLoad = (pasteWnd->m_loadItems.begin()->x == -1);
-		        loadItemsIndex = max(pasteWnd->m_loadItems.begin()->x, 0);
-		        loadItemsCount = pasteWnd->m_loadItems.begin()->y - pasteWnd->m_loadItems.begin()->x;
-		        pasteWnd->m_bStopQuery = false;
-				listSize = pasteWnd->m_listItems.size();
-		        clearFirstLoadItem = true;
-		    }
-		}
-
-	    if(clearFirstLoadItem)
-	    {
-			try
-			{
-				Log(StrF(_T("Load Items start = %d, count = %d, list size: %d"), loadItemsIndex, loadItemsCount, listSize));
-
-				int pos = loadItemsIndex;
-				CString limit;
-				limit.Format(_T(" LIMIT %d OFFSET %d"), loadItemsCount, loadItemsIndex);
-				localSql += limit;
-
-				CMainTable table;
-
-				CppSQLite3Query q = theApp.m_db.execQuery(localSql);
-				while(!q.eof())
-				{
-					CQPasteWnd::FillMainTable(table, q);
-
-					int updateIndex = -1;
-
-					{
-						ATL::CCritSecLock csLock(pasteWnd->m_CritSection.m_sect);
-
-						if (pos < pasteWnd->m_listItems.size())
-						{
-							pasteWnd->m_listItems[pos] = table;
-
-							updateIndex = pos;
-
-							//Log(StrF(_T("updating list pos = %d, id: %d, size: %d"), pos, table.m_lID, pasteWnd->m_listItems.size() - 1));
-						}
-						else if (pos == pasteWnd->m_listItems.size())
-						{
-							pasteWnd->m_listItems.push_back(table);
-							updateIndex = (int)pasteWnd->m_listItems.size() - 1;
-							//Log(StrF(_T("adding (same size) list pos = %d, id: %d, size: %d"), pasteWnd->m_listItems.size()-1, table.m_lID, pasteWnd->m_listItems.size() - 1));
-						}
-						else if (pos > pasteWnd->m_listItems.size())
-						{
-							for (int toAdd = (int)pasteWnd->m_listItems.size()-1; toAdd < pos - 1; toAdd++)
-							{
-								CMainTable empty;
-								empty.m_lID = -1;
-								pasteWnd->m_listItems.push_back(empty);
-
-								//Log(StrF(_T("adding dummy row size: %d"), pasteWnd->m_listItems.size()-1));
-							}
-
-							pasteWnd->m_listItems.push_back(table);
-
-							updateIndex = (int)pasteWnd->m_listItems.size() - 1;
-
-							//Log(StrF(_T("adding list pos = %d, id: %d, size: %d"), pasteWnd->m_listItems.size()-1, table.m_lID, pasteWnd->m_listItems.size() - 1));
-						}
-					}
-
-					if(pasteWnd->m_bStopQuery)
-					{
-						Log(StrF(_T("StopQuery called exiting filling cache count = %d"), loadItemsIndex));
-						break;
-					}
-
-					q.nextRow();
-
-					if(firstLoad == false)
-					{
-						/*if (updateIndex != loadItemsIndex)
-						{
-							Log(StrF(_T("index difference old: %d, new: %d"), loadItemsIndex, updateIndex));
-						}*/
-
-	            		::PostMessage(pasteWnd->m_hWnd, NM_REFRESH_ROW, table.m_lID, updateIndex);
-					}
-
-					loadItemsIndex++;
-					loadCount++;
-					pos++;
-				}
-
-				DWORD loadCount = GetTickCount() - startTick;
-				DWORD countCountStart = GetTickCount();
-				DWORD countCount = 0;
-				DWORD acceleratorCount = 0;
-
-				if(firstLoad)
-				{
-					::PostMessage(pasteWnd->m_hWnd, NM_REFRESH_ROW, -2, 0);
-					FireSetListCount();
-				}
-				else
-				{
-					::PostMessage(pasteWnd->m_hWnd, NM_REFRESH_ROW, -1, 0);
-				}
-
-				if(clearFirstLoadItem)
-				{
-					ATL::CCritSecLock csLock(pasteWnd->m_CritSection.m_sect);
-
-					pasteWnd->m_loadItems.erase(pasteWnd->m_loadItems.begin());
-				}
-
-				Log(StrF(_T("Load items End count = %d, Total Time = %d, LoadItems: %d, Count: %d, Accel: %d"), loadCount, GetTickCount() - startTick, loadCount, countCount, acceleratorCount));
-			}
-			catch (CppSQLite3Exception& e)	\
-			{								\
-				Log(StrF(_T("ONLoadItems - SQLITE Exception %d - %s"), e.errorCode(), e.errorMessage()));	\
-				ASSERT(FALSE);				\
-				break;
-			}	
-		}
-		else
-		{
-			break;
-		}
-	}
-
-    SetEvent(m_SearchingEvent);
+            // Publish only complete batches belonging to the current request.
+            std::vector<CMainTable> rows;
+            {
+                CppSQLite3Query q = m_searchDb.execQuery(sql);
+                while (!q.eof() && IsCurrentSearch(request.generation))
+                {
+                    CMainTable row;
+                    CQPasteWnd::FillMainTable(row, q);
+                    rows.push_back(row);
+                    q.nextRow();
+                }
+            }
+            {
+                ATL::CCritSecLock lock(pasteWnd->m_CritSection.m_sect);
+                if (!IsCurrentSearch(request.generation))
+                    break;
+                if (!rows.empty())
+                {
+                    const size_t required = static_cast<size_t>(firstRow) + rows.size();
+                    if (pasteWnd->m_listItems.size() < required)
+                        pasteWnd->m_listItems.resize(required);
+                    std::copy(rows.begin(), rows.end(), pasteWnd->m_listItems.begin() + firstRow);
+                }
+                pasteWnd->m_loadItems.pop_front();
+            }
+            ::PostMessage(pasteWnd->m_hWnd, NM_SEARCH_RESULTS_READY,
+                request.generation, firstLoad ? 1 : 0);
+            if (firstLoad)
+            {
+                ATL::CCritSecLock lock(m_requestLock.m_sect);
+                if (IsCurrentSearch(request.generation))
+                {
+                    m_countGeneration = request.generation;
+                    FireSetListCount();
+                }
+            }
+        }
+    }
+    catch (CppSQLite3Exception& e)
+    {
+        if (IsCurrentSearch(request.generation) && e.errorCode() != SQLITE_INTERRUPT)
+            Log(StrF(_T("Search page failed, SQLite code: %d"), e.errorCode()));
+    }
+    FinishSearch(request.generation);
+    Log(StrF(_T("Search pages completed in %d ms"), GetTickCount() - start));
 }
+
 
 void ReduceMapItems(CF_DibTypeMap &mapItem, CCriticalSection &critSection, CString mapName)
 {

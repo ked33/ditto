@@ -26,6 +26,7 @@
 //						-Added CppSQLiteDB3::tableExists()
 ////////////////////////////////////////////////////////////////////////////////
 #include "StdAfx.h"
+#include <atlconv.h>
 #include "CppSQLite3.h"
 #include <cstdlib>
 #include "..\UnicodeMacros.h"
@@ -783,9 +784,18 @@ bool CppSQLite3DB::DBEncrypted()
 	return encrypted;
 }
 
-void CppSQLite3DB::open(const TCHAR* szFile)
+void CppSQLite3DB::open(const TCHAR* szFile, bool readOnly)
 {
-	int nRet = sqlite3_open16(szFile, &mpDB);
+	int nRet;
+	if (readOnly)
+	{
+		CStringA utf8Path(CT2A(szFile, CP_UTF8));
+		nRet = sqlite3_open_v2(utf8Path, &mpDB, SQLITE_OPEN_READONLY | SQLITE_OPEN_FULLMUTEX, nullptr);
+	}
+	else
+	{
+		nRet = sqlite3_open16(szFile, &mpDB);
+	}
 
 	//sqlite3_exec(mpDB, "PRAGMA rekey=123456", 0, 0, 0);
 	//sqlite3_exec(mpDB, "PRAGMA key=123456", 0, 0, 0);
@@ -810,8 +820,9 @@ void CppSQLite3DB::open(const TCHAR* szFile)
 	setBusyTimeout(mnBusyTimeoutMs);
 
 	sqlite3_enable_load_extension(mpDB, 1);
-	char* e;
+	char* e = nullptr;
 	sqlite3_load_extension(mpDB, "ICU_Loader.dll", "sqlite3_icu_init", &e);
+	sqlite3_free(e);
 }
 
 void CppSQLite3DB::SetRegexCaseInsensitive(bool insensitive)

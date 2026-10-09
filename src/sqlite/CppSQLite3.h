@@ -176,7 +176,7 @@ public:
 
     virtual ~CppSQLite3DB();
 
-    void open(const TCHAR* szFile);
+    void open(const TCHAR* szFile, bool readOnly = false);
 
     void SetRegexCaseInsensitive(bool insensitive);
 
@@ -197,7 +197,12 @@ public:
 
     sqlite_int64 lastRowId();
 
-    void interrupt() { sqlite3_interrupt(mpDB); }
+    void interrupt() { if (mpDB) sqlite3_interrupt(mpDB); }
+    CString databasePath() const { return m_dbFile; }
+    void setProgressHandler(int steps, int (*callback)(void*), void* context)
+    { sqlite3_progress_handler(mpDB, steps, callback, context); }
+    void setBusyHandler(int (*callback)(void*, int), void* context)
+    { sqlite3_busy_handler(mpDB, callback, context); }
 
     void setBusyTimeout(int nMillisecs);
 

@@ -135,6 +135,7 @@ public:
     CFont m_SearchFont;
     bool m_bHideWnd;
     CString m_strSQLSearch;
+    CString m_lastSearchText;
 	CString m_strSearch;
     CGroupStatic m_stGroup;
     CFont m_groupFont;
@@ -147,7 +148,7 @@ public:
 	CGroupStatic m_noSearchResultsStatic;
 
     long m_lRecordCount;
-    bool m_bStopQuery;
+    void CancelPendingSearch();
     bool m_bHandleSearchTextChange;
     bool m_bModifersMoveActive;
 
@@ -447,6 +448,7 @@ protected:
     afx_msg LRESULT OnGroupTreeMessage(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnFillRestOfList(WPARAM wParam, LPARAM lParam);
     afx_msg LRESULT OnRefeshRow(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnSearchResultsReady(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnSetListCount(WPARAM wParam, LPARAM lParam);
     afx_msg HBRUSH CtlColor(CDC *pDC, UINT nCtlColor);
     afx_msg void OnNcLButtonDblClk(UINT nHitTest, CPoint point);

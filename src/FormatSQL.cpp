@@ -28,6 +28,8 @@ CFormatSQL::~CFormatSQL()
 
 void CFormatSQL::Parse(CString cs)
 {
+	m_csWhere.Empty();
+
 	//Replace all single ' with a double '
 	cs.Replace(_T("'"), _T("''"));
 
@@ -140,9 +142,10 @@ bool CFormatSQL::AddToSQL(CString cs, eSpecialTypes &eNOTValue, eSpecialTypes &e
 	}
 	else if (CGetSetOptions::GetSimpleTextSearch())
 	{
-		if (m_csVariable.Find(_T("%")))
+		if (cs.Find(_T("%")) >= 0)
 		{
 			CString local(cs);
+			local.Replace(_T("\\"), _T("\\\\"));
 			local.Replace(_T("%"), _T("\\%"));
 			
 			//escape the % character, https://www.sqlitetutorial.net/sqlite-like/
@@ -160,6 +163,7 @@ bool CFormatSQL::AddToSQL(CString cs, eSpecialTypes &eNOTValue, eSpecialTypes &e
 	else
 	{
 		CString local(cs);
+		local.Replace(_T("\\"), _T("\\\\"));
 		local.Replace(_T("%"), _T("\\%"));
 		csThisSQL.Format(_T("%s%sLIKE \'%%%s%%\' ESCAPE \'\\\'"), m_csVariable, GetKeyWordString(eNOTValue), local);
 	}
