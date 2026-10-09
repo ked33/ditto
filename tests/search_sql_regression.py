@@ -104,8 +104,10 @@ class SearchSchemaTests(unittest.TestCase):
         self.db = sqlite3.connect(":memory:")
         if ICU_EXTENSION:
             self.db.enable_load_extension(True)
-            self.db.execute("SELECT load_extension(?, 'sqlite3_icu_init')",
-                            (str(Path(ICU_EXTENSION).resolve()),))
+            # ICU replaces LIKE/lower/upper. Loading through a SELECT leaves
+            # an active statement, so SQLite rejects replacement with BUSY.
+            self.db.load_extension(str(Path(ICU_EXTENSION).resolve()),
+                                   entrypoint="sqlite3_icu_init")
             self.db.enable_load_extension(False)
         self.db.executescript(MAIN_SCHEMA)
 

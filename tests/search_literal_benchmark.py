@@ -27,8 +27,10 @@ def main():
         target = sqlite3.connect(path)
         try:
             target.enable_load_extension(True)
-            target.execute("SELECT load_extension(?, 'sqlite3_icu_init')",
-                           (str(args.icu_extension.resolve()),))
+            # Use the native API: ICU cannot replace LIKE during an active SQL
+            # SELECT load_extension(...) statement.
+            target.load_extension(str(args.icu_extension.resolve()),
+                                  entrypoint="sqlite3_icu_init")
             target.enable_load_extension(False)
             target.execute("CREATE TABLE cache(clipID INTEGER PRIMARY KEY, fulltext TEXT NOT NULL)")
             source = sqlite3.connect(args.database.resolve().as_uri() + "?mode=ro",
