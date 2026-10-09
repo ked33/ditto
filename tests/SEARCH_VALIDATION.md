@@ -5,10 +5,30 @@ with FTS5/trigram support. Set `DITTO_ICU_EXTENSION` to the freshly compiled
 `ICU_Loader.dll` to test the complete v3 schema and real character tokenizer.
 Without that DLL, the script explicitly skips the five literal-index tests
 and exercises only the cache/trigram portion of the schema. GitHub Actions
-runs all 18 tests with the compiled DLL before packaging.
+runs all 18 schema/search tests and the 6 filter tests with the compiled DLL before packaging.
 Tests use only generated in-memory or temporary
 databases. They extract the production SQL factories from
 `src/SearchIndexSql.cpp`; they never open the user's clipboard database.
+
+Run `python tests/search_filter_regression.py` with the same DLL to check
+the production `!!link` and `!!rtf` SQL templates. Link cases cover whole-body
+HTTP/HTTPS/www URLs, whitespace, Unicode URLs, ANSI-only clips, Unicode format
+precedence, misleading/truncated descriptions, both index-ready and fallback
+paths, combined keyword/group filters, counts and pagination. Decoder tests use
+both UTF-8 and UTF-16 databases. RTF checks reject HTML-only clips, `.rtf` file
+lists and ordinary text mentioning RTF, and keep duplicate formats from adding
+duplicate results. Without the DLL, only RTF SQL and source wiring checks run.
+
+`!!link` ignores leading/trailing whitespace and accepts only a whole web URL;
+prose containing a URL does not match. Recognition checks saved text, not the
+description or HTML markup. It does not connect to the URL or check availability.
+The indexed path reads the complete Unicode cache; the fallback reads Unicode
+clipboard BLOBs. Both paths also handle ANSI-only text. `!!rtf` requires an actual
+`Rich Text Format` data row and does not include HTML-only data. These prefixes
+are case insensitive and require end-of-input or whitespace: `!!linkage` and
+`!!rtf123` retain their original quick-paste-name meaning. Trailing keywords use
+the existing search scope and mode, e.g. `!!link /f github` or `!!rtf report`.
+Whole-URL recognition uses a fixed anchored ICU regex, not the literal FTS index.
 
 Run `python tests/search_static_checks.py` for source delimiter, project
 registration and search-message checks. These are not compiler checks.
@@ -33,7 +53,7 @@ After installing that build, check these UI flows:
 - Search one/two Chinese characters in descriptions, then use `/f ` for full
   text. Test simple, Boolean and regular-expression modes, including quotes,
   literal percent signs and Windows paths.
-- Combine `!!img` / `!!file` with text; verify grouping, sticky ordering,
+- Combine `!!img` / `!!file` / `!!link` / `!!rtf` with text; verify grouping, sticky ordering,
   pagination, select-all and delayed tooltips.
 - Hide and reopen a preserved search view while its first page or total is
   loading; scrolling must still load later pages.

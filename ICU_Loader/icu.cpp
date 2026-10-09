@@ -39,6 +39,8 @@
 #include <icu.h>
 
 #include <assert.h>
+#include <limits.h>
+#include <string.h>
 
 #ifndef SQLITE_CORE
 #include "./sqlite3ext.h"
@@ -506,6 +508,59 @@ static void icuLoadCollation(
     }
 }
 
+// Decode clipboard BLOBs explicitly: their encoding does not depend on the
+// SQLite database encoding. Clipboard text ends at the first NUL terminator.
+static void dittoClipboardText(sqlite3_context* context, int, sqlite3_value** args) {
+    const char* format = reinterpret_cast<const char*>(sqlite3_value_text(args[1]));
+    const unsigned char* data = static_cast<const unsigned char*>(sqlite3_value_blob(args[0]));
+    const int bytes = sqlite3_value_bytes(args[0]);
+    if (!format || !data) {
+        sqlite3_result_null(context);
+        return;
+    }
+
+    if (strcmp(format, "CF_UNICODETEXT") == 0) {
+        if (bytes % 2 != 0) {
+            sqlite3_result_null(context);
+            return;
+        }
+        int length = 0;
+        while (length + 1 < bytes && (data[length] != 0 || data[length + 1] != 0))
+            length += 2;
+        sqlite3_result_text16le(context, data, length, SQLITE_TRANSIENT);
+    }
+    else if (strcmp(format, "CF_TEXT") == 0) {
+        int length = 0;
+        while (length < bytes && data[length] != 0)
+            ++length;
+        if (length == 0) {
+            sqlite3_result_text(context, "", 0, SQLITE_STATIC);
+            return;
+        }
+        const char* ansi = reinterpret_cast<const char*>(data);
+        const int chars = MultiByteToWideChar(CP_ACP, 0, ansi, length, nullptr, 0);
+        if (chars == 0 || chars > INT_MAX / static_cast<int>(sizeof(wchar_t))) {
+            sqlite3_result_null(context);
+            return;
+        }
+        const int outputBytes = chars * static_cast<int>(sizeof(wchar_t));
+        wchar_t* wide = static_cast<wchar_t*>(sqlite3_malloc(outputBytes));
+        if (!wide) {
+            sqlite3_result_error_nomem(context);
+            return;
+        }
+        if (MultiByteToWideChar(CP_ACP, 0, ansi, length, wide, chars) != chars) {
+            sqlite3_free(wide);
+            sqlite3_result_null(context);
+            return;
+        }
+        sqlite3_result_text16le(context, wide, outputBytes, sqlite3_free);
+    }
+    else {
+        sqlite3_result_null(context);
+    }
+}
+
 /*
 ** Register the ICU extension functions with database db.
 */
@@ -521,6 +576,7 @@ int brogden(sqlite3* db) {
       {"icu_load_collation",2,SQLITE_UTF8 | SQLITE_DIRECTONLY,1, icuLoadCollation},
   #if !defined(SQLITE_CORE) || defined(SQLITE_ENABLE_ICU)
       {"regexp", 2, SQLITE_ANY | SQLITEICU_EXTRAFLAGS,         0, icuRegexpFunc},
+      {"ditto_clipboard_text", 2, SQLITE_UTF8 | SQLITEICU_EXTRAFLAGS, 0, dittoClipboardText},
       {"lower",  1, SQLITE_UTF16 | SQLITEICU_EXTRAFLAGS,       0, icuCaseFunc16},
       {"lower",  2, SQLITE_UTF16 | SQLITEICU_EXTRAFLAGS,       0, icuCaseFunc16},
       {"upper",  1, SQLITE_UTF16 | SQLITEICU_EXTRAFLAGS,       1, icuCaseFunc16},

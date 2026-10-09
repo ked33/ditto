@@ -45,6 +45,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           python tests/search_sql_regression.py
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python tests/search_filter_regression.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Resolve latest release version
         shell: pwsh

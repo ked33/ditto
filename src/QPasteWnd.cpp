@@ -75,7 +75,9 @@ namespace
 	{
 		None,
 		Image,
-		File
+		File,
+		Link,
+		RichText
 	};
 
 	bool HasPrefixBoundary(const CString& text, int prefixLength)
@@ -102,10 +104,43 @@ namespace
 			return SearchClipboardFormatFilter::File;
 		}
 
+		if (search.Left(6).CompareNoCase(_T("!!link")) == 0 &&
+			HasPrefixBoundary(search, 6))
+		{
+			search = search.Mid(6);
+			search.TrimLeft();
+			return SearchClipboardFormatFilter::Link;
+		}
+
+		if (search.Left(5).CompareNoCase(_T("!!rtf")) == 0 &&
+			HasPrefixBoundary(search, 5))
+		{
+			search = search.Mid(5);
+			search.TrimLeft();
+			return SearchClipboardFormatFilter::RichText;
+		}
+
 		return SearchClipboardFormatFilter::None;
 	}
 
-	CString GetSearchClipboardFormatFilterSql(SearchClipboardFormatFilter filter)
+	CString GetWebLinkFilterSql(bool indexReady)
+	{
+		// Match the whole text, independently of the user's search mode and
+		// regex case setting. Do not classify a truncated description as a URL.
+		const CString pattern = _T("(?i)\\A\\s*(?:https?://(?:[^\\s/?#<>\"@]+@)?|www\\.)(?:[\\p{L}\\p{N}](?:[\\p{L}\\p{N}-]*[\\p{L}\\p{N}])?(?:\\.[\\p{L}\\p{N}](?:[\\p{L}\\p{N}-]*[\\p{L}\\p{N}])?)*|\\[[0-9a-f:.]+\\])(?::[0-9]{1,5})?(?:[/?#][^\\s<>\"]*)?\\s*\\z");
+		const CString cachedUnicode = _T("Main.lID IN (SELECT LinkText.clipID FROM MainFullTextCache LinkText WHERE LinkText.fulltext REGEXP '%s')");
+		const CString rawUnicode = _T("Main.lID IN (SELECT LinkData.lParentID FROM Data LinkData WHERE LinkData.strClipBoardFormat = 'CF_UNICODETEXT' AND ditto_clipboard_text(LinkData.ooData, 'CF_UNICODETEXT') REGEXP '%s')");
+		// Prefer Unicode if both formats exist. ANSI-only clips are not in the
+		// Unicode full-text cache, so read their actual body rather than mText.
+		const CString rawAnsi = _T("Main.lID IN (SELECT LinkData.lParentID FROM Data LinkData WHERE LinkData.strClipBoardFormat = 'CF_TEXT' AND NOT EXISTS (SELECT 1 FROM Data UnicodeData WHERE UnicodeData.lParentID = LinkData.lParentID AND UnicodeData.strClipBoardFormat = 'CF_UNICODETEXT') AND ditto_clipboard_text(LinkData.ooData, 'CF_TEXT') REGEXP '%s')");
+		CString unicodeFilter;
+		unicodeFilter.Format(indexReady ? cachedUnicode : rawUnicode, pattern.GetString());
+		CString ansiFilter;
+		ansiFilter.Format(rawAnsi, pattern.GetString());
+		return _T("(") + unicodeFilter + _T(" OR ") + ansiFilter + _T(")");
+	}
+
+	CString GetSearchClipboardFormatFilterSql(SearchClipboardFormatFilter filter, bool indexReady)
 	{
 		switch (filter)
 		{
@@ -113,6 +148,10 @@ namespace
 			return _T("Main.lID IN (SELECT Data.lParentID FROM Data WHERE Data.strClipBoardFormat IN ('CF_DIB', 'PNG'))");
 		case SearchClipboardFormatFilter::File:
 			return _T("Main.lID IN (SELECT Data.lParentID FROM Data WHERE Data.strClipBoardFormat = 'CF_HDROP')");
+		case SearchClipboardFormatFilter::Link:
+			return GetWebLinkFilterSql(indexReady);
+		case SearchClipboardFormatFilter::RichText:
+			return _T("Main.lID IN (SELECT Data.lParentID FROM Data WHERE Data.strClipBoardFormat = 'Rich Text Format')");
 		default:
 			return _T("");
 		}
@@ -1636,7 +1675,8 @@ BOOL CQPasteWnd::FillList(CString csSQLSearch)
 
 	CString originalSQLSearch(csSQLSearch);
 	SearchClipboardFormatFilter clipboardFormatFilter = ExtractSearchClipboardFormatFilter(csSQLSearch);
-	CString clipboardFormatFilterSql = GetSearchClipboardFormatFilterSql(clipboardFormatFilter);
+	const bool searchIndexReady = SearchIndex::IsReady();
+	CString clipboardFormatFilterSql = GetSearchClipboardFormatFilterSql(clipboardFormatFilter, searchIndexReady);
 	if (clipboardFormatFilter != SearchClipboardFormatFilter::None)
 	{
 		m_lstHeader.SetSearchText(csSQLSearch);
@@ -1672,7 +1712,7 @@ BOOL CQPasteWnd::FillList(CString csSQLSearch)
 		bool bFullTextPrefixSearch = (csSQLSearch.Left(3) == _T("/f ") ||
 			csSQLSearch.Left(3) == _T("\\f "));
 
-		if (SearchIndex::IsReady())
+		if (searchIndexReady)
 		{
 			const bool useIndexedSearch = (CGetSetOptions::GetRegExTextSearch() == FALSE);
 			CString searchSourceTable = useIndexedSearch ? _T("MainFullTextIndex Search") : _T("MainFullTextCache Search");
