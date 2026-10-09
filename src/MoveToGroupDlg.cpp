@@ -52,16 +52,17 @@ BOOL CMoveToGroupDlg::OnInitDialog()
 {
 	CDialog::OnInitDialog();
 
-	if(!m_windowTitle.IsEmpty())
-	{
-		SetWindowText(m_windowTitle);
-	}
-	
 	m_Tree.m_selectedFolderID = m_nSelectedGroup;
 	m_Tree.SetNotificationWndEx(m_hWnd);
 	m_Tree.FillTree();
 
 	theApp.m_Language.UpdateMoveToGroups(this);
+
+	// A caller-supplied title takes precedence over the generic group dialog title.
+	if (!m_windowTitle.IsEmpty())
+	{
+		SetWindowText(m_windowTitle);
+	}
 	
 	return TRUE;  // return TRUE unless you set the focus to a control
 	              // EXCEPTION: OCX Property Pages should return FALSE

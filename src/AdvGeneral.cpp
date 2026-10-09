@@ -25,6 +25,11 @@ namespace
 		}
 
 		prop->SetName(AdvGeneralLang(prop->GetName()));
+		CString description = prop->GetDescription();
+		if (!description.IsEmpty())
+		{
+			prop->SetDescription(AdvGeneralLang(description));
+		}
 
 		for (int i = 0; i < prop->GetSubItemsCount(); i++)
 		{
@@ -267,7 +272,7 @@ BOOL CAdvGeneral::OnInitDialog()
 	pGroupTest->AddSubItem(new CMFCPropertyGridProperty(_T("Default copy string"), CGetSetOptions::GetDefaultCopyString(), _T(""), SETTING_DEFAULT_COPY_STRING));
 	pGroupTest->AddSubItem(new CMFCPropertyGridProperty(_T("Default cut string"), CGetSetOptions::GetDefaultCutString(), _T(""), SETTING_DEFAULT_CUT_STRING));
 	
-	static TCHAR BASED_CODE szDiffFilter[] = _T("Diff Applications(*.exe)|*.exe||");
+	CString szDiffFilter = AdvGeneralLang(_T("Diff Applications(*.exe)|*.exe||"));
 	CMFCPropertyGridFileProperty* pDiffProp = new CMFCPropertyGridFileProperty(_T("Diff application path"), TRUE, CGetSetOptions::GetDiffApp(), _T("exe"), 0, szDiffFilter, (LPCTSTR)0, SETTING_DIFF_APP);
 	pGroupTest->AddSubItem(pDiffProp);
 
@@ -302,7 +307,7 @@ BOOL CAdvGeneral::OnInitDialog()
 	pGroupTest->AddSubItem(new CMFCPropertyGridProperty(_T("Ignore copies faster than (ms) (default: 500)"), (long)CGetSetOptions::GetSaveClipDelay(), _T(""), SETTING_IGNORE_FALSE_COPIES_DELAY));
 	pGroupTest->AddSubItem(new CMFCPropertyGridProperty(_T("Ignore CF_DIB when a clip is detected as text content"), CGetSetOptions::GetIgnoreAnnoyingCFDIB(), _T("Case insensitive. Recommended option is \"excel.exe; onenote.exe; powerpnt.exe\" "), SETTING_IGNORE_ANNOYING_CF_DIB));
 
-	static TCHAR BASED_CODE szImageEditorFilter[] = _T("Applications(*.exe)|*.exe||");
+	CString szImageEditorFilter = AdvGeneralLang(_T("Applications(*.exe)|*.exe||"));
 	CMFCPropertyGridFileProperty* pImageEditorProp = new CMFCPropertyGridFileProperty(_T("Image editor path (empty for system mapping)"), TRUE, CGetSetOptions::GetImageEditorPath(), _T("exe"), 0, szImageEditorFilter, (LPCTSTR)0, SETTING_IMAGE_EDITOR_PATH);
 	pGroupTest->AddSubItem(pImageEditorProp);
 
@@ -323,11 +328,11 @@ BOOL CAdvGeneral::OnInitDialog()
 
 	pGroupTest->AddSubItem(new CMFCPropertyGridProperty(_T("QRCode Url"), CGetSetOptions::GetQRCodeUrl(), _T(""), SETTING_QR_CODE_URL));
 
-	static TCHAR BASED_CODE szFilter[] = _T("Sounds(*.wav)|*.wav||");
+	CString szFilter = AdvGeneralLang(_T("Sounds(*.wav)|*.wav||"));
 	CMFCPropertyGridFileProperty* pFileProp = new CMFCPropertyGridFileProperty(_T("On copy play the sound"), TRUE, CGetSetOptions::GetPlaySoundOnCopy(), _T("wav"), 0, szFilter, (LPCTSTR)0, SETTING_COPY_PLAY_SOUND);
 	pGroupTest->AddSubItem(pFileProp);
 
-	static TCHAR BASED_CODE szTextEditorFilter[] = _T("Applications(*.exe)|*.exe||");
+	CString szTextEditorFilter = AdvGeneralLang(_T("Applications(*.exe)|*.exe||"));
 	CMFCPropertyGridFileProperty* pTextEditorProp = new CMFCPropertyGridFileProperty(_T("Text editor path (empty for system mapping)"), TRUE, CGetSetOptions::GetTextEditorPath(), _T("exe"), 0, szTextEditorFilter, (LPCTSTR)0, SETTING_TEXT_EDITOR_PATH);
 	pGroupTest->AddSubItem(pTextEditorProp);
 
@@ -341,7 +346,7 @@ BOOL CAdvGeneral::OnInitDialog()
 
 	AddTrueFalse(pGroupTest, _T("Regex case insensitive search"), CGetSetOptions::GetRegexCaseInsensitive(), SETTING_REGEX_CASE_INSENSITIVE);
 
-	static TCHAR BASED_CODE szRTFEditorFilter[] = _T("Applications(*.exe)|*.exe||");
+	CString szRTFEditorFilter = AdvGeneralLang(_T("Applications(*.exe)|*.exe||"));
 	CMFCPropertyGridFileProperty* pRTFEditorProp = new CMFCPropertyGridFileProperty(_T("RTF editor path"), TRUE, CGetSetOptions::GetRTFEditorPath(), _T("exe"), 0, szRTFEditorFilter, (LPCTSTR)0, SETTING_RTF_EDITOR_PATH);
 	pGroupTest->AddSubItem(pRTFEditorProp);
 
@@ -1253,7 +1258,7 @@ void CAdvGeneral::OnBnClickedButtonCopyScripts2()
 {
 	CDimWnd dimmer(this);
 
-	CMoveToGroupDlg dlg(this, _T("Select group to reset clip order"));
+	CMoveToGroupDlg dlg(this, AdvGeneralLang(_T("Select group to reset clip order")));
 
 	const auto ret = dlg.DoModal();
 	if (ret == IDOK)

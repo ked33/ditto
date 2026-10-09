@@ -10,6 +10,14 @@
 #include "DittoChaiScript.h"
 
 
+namespace
+{
+	CString ScriptEditorLang(LPCTSTR text)
+	{
+		return theApp.m_Language.GetString(text, text);
+	}
+}
+
 // CScriptEditor dialog
 
 IMPLEMENT_DYNAMIC(CScriptEditor, CDialogEx)
@@ -51,9 +59,31 @@ BOOL CScriptEditor::OnInitDialog()
 {
 	CDialogEx::OnInitDialog();
 
-	SetWindowText(m_title);
+	SetWindowText(m_title.IsEmpty() ? ScriptEditorLang(_T("Scripts")) : ScriptEditorLang(m_title));
 
-	
+	const struct
+	{
+		int id;
+		LPCTSTR text;
+	} labels[] = {
+		{ IDC_STATIC_NAME, _T("Name") },
+		{ IDC_STATIC_DESC, _T("Description") },
+		{ IDC_STATIC_ACTIVE, _T("Active") },
+		{ IDC_STATIC_SCRIPT, _T("Script") },
+		{ IDC_MFCLINK2_EXAMPLES, _T("Examples") },
+		{ IDC_STATIC_RETURN_DESC, _T("Scripts must return true/false. Return true to cancel saving the copy or cancel the paste.") },
+		{ IDC_STATIC_INPUT, _T("Sample Input") },
+		{ IDC_STATIC_OUTPUT, _T("Sample Output") },
+		{ IDC_BUTTON_RUN, _T("Run") },
+		{ IDC_BUTTON_ADD_SCRIPT, _T("Add") },
+		{ IDC_BUTTON_DELETE_SCRIPT, _T("Delete") },
+		{ IDOK, _T("OK") },
+		{ IDCANCEL, _T("Cancel") }
+	};
+	for (const auto& label : labels)
+	{
+		SetDlgItemText(label.id, ScriptEditorLang(label.text));
+	}
 
 	int index = 0;
 	for (auto & listItem : m_xml.m_list)
@@ -101,8 +131,8 @@ BOOL CScriptEditor::OnInitDialog()
 	m_resize.AddControl(IDC_BUTTON_DELETE_SCRIPT, DR_MoveTop);
 	m_resize.AddControl(IDC_BUTTON_ADD_SCRIPT, DR_MoveTop);	
 
-	SetDlgItemText(IDC_EDIT_ACTIVE_APP, _T("App name"));
-	SetDlgItemText(IDC_EDIT_ACTIVE_APP_TITLE, _T("App Title"));	
+	SetDlgItemText(IDC_EDIT_ACTIVE_APP, ScriptEditorLang(_T("App name")));
+	SetDlgItemText(IDC_EDIT_ACTIVE_APP_TITLE, ScriptEditorLang(_T("App Title")));
 
 	return FALSE;
 }
@@ -131,7 +161,7 @@ void CScriptEditor::OnLbnSelchangeListScripts()
 void CScriptEditor::OnBnClickedButtonAddScript()
 {
 	CDittoChaiScriptXmlItem newItem;
-	newItem.m_name = _T("New Script");
+	newItem.m_name = ScriptEditorLang(_T("New Script"));
 	newItem.m_active = true;
 	newItem.m_guid = NewGuidString();
 	m_xml.m_list.push_back(newItem);
@@ -287,9 +317,13 @@ void CScriptEditor::OnBnClickedButtonRun()
 	clipData.SetAsciiString((LPCSTR)CTextConvert::UnicodeToAnsi(input));
 	clipData.DescriptionReplaceRegex(".*", (LPCSTR)CTextConvert::UnicodeToAnsi(input));
 	
-	test.ProcessScript(clipData, (LPCSTR)CTextConvert::UnicodeToAnsi(script));
+	const bool continueAction = test.ProcessScript(clipData, (LPCSTR)CTextConvert::UnicodeToAnsi(script));
 
-	if (test.m_lastError == _T(""))
+	if (!continueAction)
+	{
+		SetDlgItemText(IDC_EDIT_OUTPUT, ScriptEditorLang(_T("Script returned true, canceling copy or paste")));
+	}
+	else if (test.m_lastError == _T(""))
 	{
 		CString currentString = CTextConvert::AnsiToUnicode(clipData.GetAsciiString().c_str());
 		if (currentString == _T(""))
@@ -297,7 +331,7 @@ void CScriptEditor::OnBnClickedButtonRun()
 			currentString = clipData.GetUnicodeString().c_str();
 		}
 
-		SetDlgItemText(IDC_EDIT_OUTPUT, _T("returned false\r\n") + currentString);
+		SetDlgItemText(IDC_EDIT_OUTPUT, ScriptEditorLang(_T("returned false")) + _T("\r\n") + currentString);
 	}
 	else
 	{

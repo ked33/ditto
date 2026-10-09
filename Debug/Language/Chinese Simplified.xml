@@ -551,6 +551,42 @@
 		<Item English_Text = "At Cursor" ID = "AtCursor">光标处</Item>
 		<Item English_Text = "At Previous Position" ID = "AtPreviousPosition">上次打开的位置</Item>
 		
+		<!-- Advanced settings and script editor -->
+		<Item English_Text = "Reset Clip Order" ID = "Reset Clip Order">重置剪贴项顺序</Item>
+		<Item English_Text = "Select group to reset clip order" ID = "Select group to reset clip order">选择要重置剪贴项顺序的分组</Item>
+		<Item English_Text = "Use modern scroll bar" ID = "Use modern scroll bar">使用现代滚动条</Item>
+		<Item English_Text = "Do not hide Ditto window on deactivate" ID = "Do not hide Ditto window on deactivate">Ditto 窗口失去焦点时不隐藏</Item>
+		<Item English_Text = "Draw swatch for hex, RGB, and HSL colors" ID = "Draw swatch for hex, RGB, and HSL colors">为十六进制、RGB 和 HSL 颜色显示色块</Item>
+		<Item English_Text = "Enforce clipboard ignore formats" ID = "Enforce clipboard ignore formats">强制遵循剪贴板忽略格式</Item>
+		<Item English_Text = "Fast thumbnails (True = fast / low quality (default). False = slow / high quality)" ID = "Fast thumbnails (True = fast / low quality (default). False = slow / high quality)">快速缩略图（True = 速度快、质量低〔默认〕；False = 速度慢、质量高）</Item>
+		<Item English_Text = "Ignore CF_DIB when a clip is detected as text content" ID = "Ignore CF_DIB when a clip is detected as text content">剪贴项被识别为文本内容时忽略 CF_DIB</Item>
+		<Item English_Text = "Hide taskbar icon when Ditto window closes" ID = "Hide taskbar icon when Ditto window closes">Ditto 窗口关闭时隐藏任务栏图标</Item>
+		<Item English_Text = "Web Search Url" ID = "Web Search Url">网页搜索地址</Item>
+		<Item English_Text = "Diff Applications(*.exe)|*.exe||" ID = "Diff Applications(*.exe)|*.exe||">比较程序 (*.exe)|*.exe||</Item>
+		<Item English_Text = "Applications(*.exe)|*.exe||" ID = "Applications(*.exe)|*.exe||">应用程序 (*.exe)|*.exe||</Item>
+		<Item English_Text = "Sounds(*.wav)|*.wav||" ID = "Sounds(*.wav)|*.wav||">声音文件 (*.wav)|*.wav||</Item>
+		<Item English_Text = "Case insensitive. Recommended option is &quot;excel.exe; onenote.exe; powerpnt.exe&quot; " ID = "Case insensitive. Recommended option is &quot;excel.exe; onenote.exe; powerpnt.exe&quot; ">不区分大小写。建议填写：excel.exe; onenote.exe; powerpnt.exe</Item>
+		<Item English_Text = "Process making the copy first must match this before the Regex will be applied (empty or * for all processes) (separate multiples by ;)" ID = "Process making the copy first must match this before the Regex will be applied (empty or * for all processes) (separate multiples by ;)">仅当执行复制的进程匹配此条件时，才应用正则表达式。留空或填 * 表示所有进程，多个进程名用 ; 分隔。</Item>
+		<Item English_Text = "If copied text matches this regular expression then the clip will not be saved to Ditto" ID = "If copied text matches this regular expression then the clip will not be saved to Ditto">若复制的文本匹配此正则表达式，则不将该剪贴项保存到 Ditto。</Item>
+		<Item English_Text = "Scripts" ID = "Scripts">脚本</Item>
+		<Item English_Text = "Copy Scripts" ID = "Copy Scripts">复制时脚本</Item>
+		<Item English_Text = "Paste Scripts" ID = "Paste Scripts">粘贴时脚本</Item>
+		<Item English_Text = "Name" ID = "Name">名称</Item>
+		<Item English_Text = "Description" ID = "Description">描述</Item>
+		<Item English_Text = "Active" ID = "Active">启用</Item>
+		<Item English_Text = "Script" ID = "Script">脚本</Item>
+		<Item English_Text = "Examples" ID = "Examples">示例</Item>
+		<Item English_Text = "Scripts must return true/false. Return true to cancel saving the copy or cancel the paste." ID = "Scripts must return true/false. Return true to cancel saving the copy or cancel the paste.">脚本须返回 true/false；true 取消保存或粘贴。</Item>
+		<Item English_Text = "Sample Input" ID = "Sample Input">示例输入</Item>
+		<Item English_Text = "Sample Output" ID = "Sample Output">示例输出</Item>
+		<Item English_Text = "App name" ID = "App name">程序名</Item>
+		<Item English_Text = "App Title" ID = "App Title">窗口标题</Item>
+		<Item English_Text = "Run" ID = "Run">运行</Item>
+		<Item English_Text = "Add" ID = "Add">添加</Item>
+		<Item English_Text = "Delete" ID = "Delete">删除</Item>
+		<Item English_Text = "New Script" ID = "New Script">新建脚本</Item>
+		<Item English_Text = "returned false" ID = "returned false">返回 false</Item>
+		<Item English_Text = "Script returned true, canceling copy or paste" ID = "Script returned true, canceling copy or paste">脚本返回 true，取消保存或粘贴</Item>
 	</Ditto_String_Table>
 	<Ditto_Options_Sheet>
 		<Item English_Text = "OK" ID = "1">确定</Item>

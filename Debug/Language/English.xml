@@ -563,6 +563,42 @@
 		<Item English_Text = "At Cursor" ID = "AtCursor"></Item>
 		<Item English_Text = "At Previous Position" ID = "AtPreviousPosition"></Item>
 		
+		<!-- Advanced settings and script editor -->
+		<Item English_Text = "Reset Clip Order" ID = "Reset Clip Order"></Item>
+		<Item English_Text = "Select group to reset clip order" ID = "Select group to reset clip order"></Item>
+		<Item English_Text = "Use modern scroll bar" ID = "Use modern scroll bar"></Item>
+		<Item English_Text = "Do not hide Ditto window on deactivate" ID = "Do not hide Ditto window on deactivate"></Item>
+		<Item English_Text = "Draw swatch for hex, RGB, and HSL colors" ID = "Draw swatch for hex, RGB, and HSL colors"></Item>
+		<Item English_Text = "Enforce clipboard ignore formats" ID = "Enforce clipboard ignore formats"></Item>
+		<Item English_Text = "Fast thumbnails (True = fast / low quality (default). False = slow / high quality)" ID = "Fast thumbnails (True = fast / low quality (default). False = slow / high quality)"></Item>
+		<Item English_Text = "Ignore CF_DIB when a clip is detected as text content" ID = "Ignore CF_DIB when a clip is detected as text content"></Item>
+		<Item English_Text = "Hide taskbar icon when Ditto window closes" ID = "Hide taskbar icon when Ditto window closes"></Item>
+		<Item English_Text = "Web Search Url" ID = "Web Search Url"></Item>
+		<Item English_Text = "Diff Applications(*.exe)|*.exe||" ID = "Diff Applications(*.exe)|*.exe||"></Item>
+		<Item English_Text = "Applications(*.exe)|*.exe||" ID = "Applications(*.exe)|*.exe||"></Item>
+		<Item English_Text = "Sounds(*.wav)|*.wav||" ID = "Sounds(*.wav)|*.wav||"></Item>
+		<Item English_Text = "Case insensitive. Recommended option is &quot;excel.exe; onenote.exe; powerpnt.exe&quot; " ID = "Case insensitive. Recommended option is &quot;excel.exe; onenote.exe; powerpnt.exe&quot; "></Item>
+		<Item English_Text = "Process making the copy first must match this before the Regex will be applied (empty or * for all processes) (separate multiples by ;)" ID = "Process making the copy first must match this before the Regex will be applied (empty or * for all processes) (separate multiples by ;)"></Item>
+		<Item English_Text = "If copied text matches this regular expression then the clip will not be saved to Ditto" ID = "If copied text matches this regular expression then the clip will not be saved to Ditto"></Item>
+		<Item English_Text = "Scripts" ID = "Scripts"></Item>
+		<Item English_Text = "Copy Scripts" ID = "Copy Scripts"></Item>
+		<Item English_Text = "Paste Scripts" ID = "Paste Scripts"></Item>
+		<Item English_Text = "Name" ID = "Name"></Item>
+		<Item English_Text = "Description" ID = "Description"></Item>
+		<Item English_Text = "Active" ID = "Active"></Item>
+		<Item English_Text = "Script" ID = "Script"></Item>
+		<Item English_Text = "Examples" ID = "Examples"></Item>
+		<Item English_Text = "Scripts must return true/false. Return true to cancel saving the copy or cancel the paste." ID = "Scripts must return true/false. Return true to cancel saving the copy or cancel the paste."></Item>
+		<Item English_Text = "Sample Input" ID = "Sample Input"></Item>
+		<Item English_Text = "Sample Output" ID = "Sample Output"></Item>
+		<Item English_Text = "App name" ID = "App name"></Item>
+		<Item English_Text = "App Title" ID = "App Title"></Item>
+		<Item English_Text = "Run" ID = "Run"></Item>
+		<Item English_Text = "Add" ID = "Add"></Item>
+		<Item English_Text = "Delete" ID = "Delete"></Item>
+		<Item English_Text = "New Script" ID = "New Script"></Item>
+		<Item English_Text = "returned false" ID = "returned false"></Item>
+		<Item English_Text = "Script returned true, canceling copy or paste" ID = "Script returned true, canceling copy or paste"></Item>
 	</Ditto_String_Table>
 	<Ditto_Options_Sheet>
 		<Item English_Text = "OK" ID = "1"></Item>

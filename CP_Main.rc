@@ -1295,10 +1295,10 @@ BEGIN
     PUSHBUTTON      "Add",IDC_BUTTON_ADD_SCRIPT,7,303,32,14
     PUSHBUTTON      "Delete",IDC_BUTTON_DELETE_SCRIPT,58,303,32,14
     LTEXT           "Name",IDC_STATIC_NAME,100,7,19,14,SS_CENTERIMAGE
-    LTEXT           "Desciption",IDC_STATIC_DESC,100,24,34,14,SS_CENTERIMAGE
+    LTEXT           "Description",IDC_STATIC_DESC,100,24,34,14,SS_CENTERIMAGE
     LTEXT           "Sample Input",IDC_STATIC_INPUT,100,185,43,8
     LTEXT           "Sample Output",IDC_STATIC_OUTPUT,100,248,48,8
-    LTEXT           "All function must return true/false.  Return true to cancel saving the copy or cancel the paste.",IDC_STATIC_RETURN_DESC,100,174,326,8
+    LTEXT           "Scripts must return true/false. Return true to cancel saving the copy or cancel the paste.",IDC_STATIC_RETURN_DESC,100,174,326,8
     LTEXT           "Script",IDC_STATIC_SCRIPT,100,56,30,10
     LTEXT           "Active",IDC_STATIC_ACTIVE,100,42,21,14
     CONTROL         "ChaiScript (http://chaiscript.com/)",IDC_MFCLINK_CHAISCRIPT,
