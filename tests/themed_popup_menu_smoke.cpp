@@ -1,4 +1,4 @@
-// Standalone Win32 regression test; does not require MFC or display a window.
+// Standalone Win32 regression test; the native tooltip is displayed offscreen.
 #include "../src/ThemedPopupMenu.h"
 #include "../src/NativeToolTipTheme.h"
 #include <commctrl.h>
@@ -14,16 +14,20 @@ namespace
 	int initCount = 0;
 	int commandCount = 0;
 	HMENU root = NULL;
-	wchar_t tooltipSample[] = L"Clipboard text\r\nDatabase ID: 123";
+	wchar_t tooltipSample[] = L"Clipboard text\r\nAdded: 2026-10-09\r\nLast Used: 2026-10-09";
 
 	struct ToolTipProbe
 	{
 		COLORREF background = 0;
 		COLORREF text = 0;
+		COLORREF border = 0;
+		HWND window = NULL;
+		bool drawBorder = true;
 		int textRequests = 0;
 		int themeChanges = 0;
 		int backgroundWrites = 0;
 		int textWrites = 0;
+		int borderPaints = 0;
 	};
 
 	LRESULT CALLBACK ToolTipProbeProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam,
@@ -67,6 +71,20 @@ namespace
 			info->lpszText = tooltipSample;
 			return 0;
 		}
+		if (message == WM_NOTIFY && reinterpret_cast<NMHDR*>(lParam)->code == NM_CUSTOMDRAW)
+		{
+			auto* probe = reinterpret_cast<ToolTipProbe*>(GetWindowLongPtrW(window, GWLP_USERDATA));
+			auto* draw = reinterpret_cast<NMTTCUSTOMDRAW*>(lParam);
+			if (probe && draw->nmcd.hdr.hwndFrom == probe->window && probe->drawBorder)
+			{
+				COLORREF brushColor = GetDCBrushColor(draw->nmcd.hdc);
+				LRESULT result = CustomDrawNativeToolTipBorder(*draw, probe->border);
+				assert(GetDCBrushColor(draw->nmcd.hdc) == brushColor);
+				if (draw->nmcd.dwDrawStage == CDDS_POSTPAINT && !(draw->uDrawFlags & DT_CALCRECT))
+					++probe->borderPaints;
+				return result;
+			}
+		}
 		if (message == WM_INITMENUPOPUP)
 		{
 			++initCount;
@@ -93,12 +111,67 @@ namespace
 		return DefWindowProcW(window, message, wParam, lParam);
 	}
 
+	void CheckToolTipBorderPixels(ToolTipProbe& probe)
+	{
+		DWORD baseline = GetGuiResources(GetCurrentProcess(), GR_GDIOBJECTS);
+		RECT rect;
+		assert(GetClientRect(probe.window, &rect));
+		const int width = rect.right, height = rect.bottom;
+		HDC dc = CreateCompatibleDC(NULL);
+		BITMAPINFO info = {};
+		info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+		info.bmiHeader.biWidth = width;
+		info.bmiHeader.biHeight = -height;
+		info.bmiHeader.biPlanes = 1;
+		info.bmiHeader.biBitCount = 32;
+		void* pixels = nullptr;
+		HBITMAP bitmap = CreateDIBSection(dc, &info, DIB_RGB_COLORS, &pixels, NULL, 0);
+		assert(bitmap);
+		HGDIOBJ oldBitmap = SelectObject(dc, bitmap);
+		probe.drawBorder = false;
+		const int nativeTextRequestsBefore = probe.textRequests;
+		SendMessageW(probe.window, WM_PRINTCLIENT, reinterpret_cast<WPARAM>(dc), PRF_CLIENT);
+		const int nativeTextRequestsPerPaint = probe.textRequests - nativeTextRequestsBefore;
+		GdiFlush();
+		auto* data = static_cast<DWORD*>(pixels);
+		std::vector<DWORD> original(data, data + width * height);
+		probe.drawBorder = true;
+		const auto before = probe;
+		for (int repeat = 0; repeat < 100; ++repeat)
+			SendMessageW(probe.window, WM_PRINTCLIENT, reinterpret_cast<WPARAM>(dc), PRF_CLIENT);
+		GdiFlush();
+		assert(probe.borderPaints == before.borderPaints + 100);
+		assert(probe.textRequests == before.textRequests + 100 * nativeTextRequestsPerPaint);
+		assert(probe.themeChanges == before.themeChanges);
+		assert(probe.backgroundWrites == before.backgroundWrites);
+		assert(probe.textWrites == before.textWrites);
+		const DWORD borderPixel = RGB(GetBValue(probe.border), GetGValue(probe.border), GetRValue(probe.border));
+		for (int y = 0; y < height; ++y)
+			for (int x = 0; x < width; ++x)
+			{
+				const int index = y * width + x;
+				const DWORD expected = x == 0 || y == 0 || x == width - 1 || y == height - 1
+					? borderPixel : original[index];
+				assert((data[index] & 0xFFFFFF) == (expected & 0xFFFFFF));
+			}
+		// Printing does not validate the native window's pending update region.
+		// A normal paint must consume it without scheduling another paint.
+		UpdateWindow(probe.window);
+		assert(!GetUpdateRect(probe.window, NULL, FALSE));
+		SelectObject(dc, oldBitmap);
+		DeleteObject(bitmap);
+		DeleteDC(dc);
+		assert(GetGuiResources(GetCurrentProcess(), GR_GDIOBJECTS) == baseline);
+	}
+
 	void CheckNativeToolTip(HWND owner)
 	{
 		HWND tip = CreateWindowExW(0, TOOLTIPS_CLASSW, L"", WS_POPUP | TTS_ALWAYSTIP,
 			0, 0, 300, 100, owner, NULL, GetModuleHandleW(NULL), NULL);
 		assert(tip);
 		ToolTipProbe probe;
+		probe.window = tip;
+		SetWindowLongPtrW(owner, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(&probe));
 		assert(SetWindowSubclass(tip, ToolTipProbeProc, 1, reinterpret_cast<DWORD_PTR>(&probe)));
 		SendMessageW(tip, TTM_SETMAXTIPWIDTH, 0, 500);
 		SendMessageW(tip, TTM_SETDELAYTIME, TTDT_AUTOPOP, 7000);
@@ -106,6 +179,7 @@ namespace
 		tool.hwnd = owner;
 		tool.uId = 1;
 		tool.rect = {0, 0, 300, 100};
+		tool.uFlags = TTF_TRACK | TTF_ABSOLUTE;
 		tool.lpszText = LPSTR_TEXTCALLBACKW;
 		tool.lParam = reinterpret_cast<LPARAM>(&probe);
 		assert(SendMessageW(tip, TTM_ADDTOOLW, 0, reinterpret_cast<LPARAM>(&tool)));
@@ -118,17 +192,24 @@ namespace
 		};
 
 		for (const auto& palette : std::vector<PopupMenuColors>{
-			{RGB(40, 42, 54), RGB(248, 248, 242), 0, 0, 0},
-			{RGB(255, 255, 225), RGB(25, 25, 25), 0, 0, 0},
-			{RGB(40, 42, 54), RGB(248, 248, 242), 0, 0, 0}})
+			{RGB(40, 42, 54), RGB(248, 248, 242), 0, 0, RGB(98, 114, 164)},
+			{RGB(255, 255, 225), RGB(25, 25, 25), 0, 0, RGB(204, 204, 204)},
+			{RGB(40, 42, 54), RGB(248, 248, 242), 0, 0, RGB(98, 114, 164)}})
 		{
 			probe.background = palette.background;
 			probe.text = palette.text;
+			probe.border = palette.border;
 			readText();
 			assert(GetWindowTheme(tip) == NULL);
 			assert(SendMessageW(tip, TTM_GETTIPBKCOLOR, 0, 0) == palette.background);
 			assert(SendMessageW(tip, TTM_GETTIPTEXTCOLOR, 0, 0) == palette.text);
-			assert(ValidateRect(tip, NULL));
+			SendMessageW(tip, TTM_TRACKPOSITION, 0, MAKELPARAM(-30000, -30000));
+			SendMessageW(tip, TTM_TRACKACTIVATE, TRUE, reinterpret_cast<LPARAM>(&tool));
+			RECT position;
+			assert(GetWindowRect(tip, &position));
+			assert(position.right < 0 && position.bottom < 0);
+			UpdateWindow(tip);
+			assert(!GetUpdateRect(tip, NULL, FALSE));
 			const auto before = probe;
 			for (int repeat = 0; repeat < 1000; ++repeat)
 				readText();
@@ -136,13 +217,22 @@ namespace
 			assert(probe.themeChanges == before.themeChanges);
 			assert(probe.backgroundWrites == before.backgroundWrites);
 			assert(probe.textWrites == before.textWrites);
+			assert(probe.borderPaints == before.borderPaints);
 			assert(!GetUpdateRect(tip, NULL, FALSE));
 			assert(SendMessageW(tip, TTM_GETMAXTIPWIDTH, 0, 0) == 500);
 			assert(SendMessageW(tip, TTM_GETDELAYTIME, TTDT_AUTOPOP, 0) == 7000);
+			CheckToolTipBorderPixels(probe);
+			SendMessageW(tip, TTM_TRACKACTIVATE, FALSE, reinterpret_cast<LPARAM>(&tool));
 		}
 		assert(RemoveWindowSubclass(tip, ToolTipProbeProc, 1));
 		DestroyWindow(tip);
+		SetWindowLongPtrW(owner, GWLP_USERDATA, 0);
 		ApplyNativeToolTipTheme(NULL, 0, 0);
+		NMTTCUSTOMDRAW measurement = {};
+		measurement.nmcd.dwDrawStage = CDDS_PREPAINT;
+		measurement.uDrawFlags = DT_CALCRECT;
+		assert(CustomDrawNativeToolTipBorder(measurement, 0) == CDRF_DODEFAULT);
+		puts("PASS: native tooltip border pixels, unchanged interior, 300 paints without extra text requests or GDI leaks");
 		puts("PASS: native hover tooltip colors, 3000 text callbacks without theme/color writes or invalidation, text and timing");
 	}
 

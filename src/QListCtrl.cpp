@@ -272,6 +272,7 @@ BEGIN_MESSAGE_MAP(CQListCtrl, CListCtrl)
 	//}}AFX_MSG_MAP
 	ON_NOTIFY_EX_RANGE(TTN_NEEDTEXTW, 0, 0xFFFF, OnToolTipText)
 	ON_NOTIFY_EX_RANGE(TTN_NEEDTEXTA, 0, 0xFFFF, OnToolTipText)
+	ON_NOTIFY_EX_RANGE(NM_CUSTOMDRAW, 0, 0xFFFF, OnToolTipCustomDraw)
 	ON_WM_KILLFOCUS()
 	ON_WM_MEASUREITEM_REFLECT()
 	ON_WM_MOUSEHWHEEL()
@@ -1240,6 +1241,16 @@ BOOL CQListCtrl::OnEraseBkgnd(CDC* pDC)
 	//return CListCtrl::OnEraseBkgnd(pDC);
 }
 
+BOOL CQListCtrl::OnToolTipCustomDraw(UINT, NMHDR* pNMHDR, LRESULT* pResult)
+{
+	if (pNMHDR->hwndFrom != m_nativeToolTipHwnd)
+		return FALSE;
+
+	*pResult = CustomDrawNativeToolTipBorder(*reinterpret_cast<NMTTCUSTOMDRAW*>(pNMHDR),
+		CGetSetOptions::m_Theme.Border());
+	return TRUE;
+}
+
 BOOL CQListCtrl::OnToolTipText(UINT id, NMHDR* pNMHDR, LRESULT* pResult)
 {
 	// need to handle both ANSI and UNICODE versions of the message
@@ -1623,10 +1634,10 @@ bool CQListCtrl::ShowFullDescription(bool bFromAuto, bool fromNextPrev)
 			{
 				CString clipData;
 				COleDateTime time((time_t)q.getInt64Field(_T("lDate")));
-				clipData += "Added: " + time.Format();
+				clipData += theApp.m_Language.GetString(_T("ClipAdded"), _T("Added")) + _T(": ") + time.Format();
 
 				COleDateTime modified((time_t)q.getInt64Field(_T("lastPasteDate")));
-				clipData += _T(" | Last Used: ") + modified.Format();
+				clipData += _T(" | ") + theApp.m_Language.GetString(_T("ClipLastUsed"), _T("Last Used")) + _T(": ") + modified.Format();
 
 				if (q.getIntField(_T("lDontAutoDelete")) > 0)
 				{

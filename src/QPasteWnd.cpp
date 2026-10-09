@@ -6275,13 +6275,11 @@ void CQPasteWnd::OnGetToolTipText(NMHDR* pNMHDR, LRESULT* pResult)
 				q.getFloatField(_T("stickyClipOrder")), q.getFloatField(_T("stickyClipGroupOrder")));
 #endif 
 
-			clipData += StrF(_T("\r\nDatabase ID: %d"), q.getIntField(_T("lID")));
-
 			COleDateTime time((time_t)q.getInt64Field(_T("lDate")));
-			clipData += "\r\nAdded: " + time.Format();
+			clipData += _T("\r\n") + theApp.m_Language.GetString(_T("ClipAdded"), _T("Added")) + _T(": ") + time.Format();
 
 			COleDateTime modified((time_t)q.getInt64Field(_T("lastPasteDate")));
-			clipData += "\r\nLast Used: " + modified.Format();
+			clipData += _T("\r\n") + theApp.m_Language.GetString(_T("ClipLastUsed"), _T("Last Used")) + _T(": ") + modified.Format();
 
 			if (q.getIntField(_T("lDontAutoDelete")) > 0)
 			{
