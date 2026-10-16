@@ -65,6 +65,9 @@ CString ActionEnums::EnumDescription(ActionEnumValues value)
 	case EDITCLIP:
 		val = "Edit Clip";
 		break;
+	case CUSTOM_EDIT_CLIP:
+		val = "Custom Edit Clip";
+		break;
 	case MODIFIER_ACTVE_SELECTIONUP:
 		val = "MODIFIER_ACTVE_SELECTIONUP";
 		break;

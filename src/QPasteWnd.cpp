@@ -3510,6 +3510,9 @@ bool CQPasteWnd::DoAction(CAccel a)
 	case ActionEnums::EDITCLIP:
 		ret = DoActionEditClip();
 		break;
+	case ActionEnums::CUSTOM_EDIT_CLIP:
+		ret = DoActionEditClip(true);
+		break;
 	case ActionEnums::MODIFIER_ACTVE_SELECTIONUP:
 		ret = DoModifierActiveActionSelectionUp();
 		break;
@@ -4280,23 +4283,51 @@ bool CQPasteWnd::DoActionNewClip()
 	return true;
 }
 
-bool CQPasteWnd::DoActionEditClip()
+bool CQPasteWnd::DoActionEditClip(bool useCustomEditor)
 {
 	if (m_lstHeader.GetSelectedCount() == 0)
 	{
 		return false;
 	}
 
-	CClipIDs IDs;
-	m_lstHeader.GetSelectionItemData(IDs);
-
-	bool textOnly = false;
-	if (GetKeyState(VK_SHIFT) & 0x8000)
+	CString customEditorPath;
+	if (useCustomEditor)
 	{
-		textOnly = true;
+		customEditorPath = CGetSetOptions::GetCustomEditorPath();
+		customEditorPath.Trim();
+		customEditorPath.Trim(_T("\""));
 	}
 
-	theApp.EditItems(IDs, true, textOnly);
+	CString error;
+	if (useCustomEditor && customEditorPath.IsEmpty())
+	{
+		error = theApp.m_Language.GetString("CustomEditorPathRequired", "Please set the custom clip editor path in Options > General > Advanced.");
+	}
+	else
+	{
+		CClipIDs IDs;
+		m_lstHeader.GetSelectionItemData(IDs);
+
+		bool textOnly = false;
+		if (GetKeyState(VK_SHIFT) & 0x8000)
+		{
+			textOnly = true;
+		}
+
+		bool edited = theApp.EditItems(IDs, true, textOnly, customEditorPath);
+		if (useCustomEditor && !edited)
+		{
+			error = theApp.m_Language.GetString("CustomEditorFailed", "Unable to open the selected clips with the custom editor. Check the editor path and clip format.");
+		}
+	}
+
+	if (!error.IsEmpty())
+	{
+		bool previousHideWnd = m_bHideWnd;
+		m_bHideWnd = false;
+		MessageBox(error, _T("Ditto"), MB_OK | MB_ICONWARNING | MB_TOPMOST);
+		m_bHideWnd = previousHideWnd;
+	}
 
 	return true;
 }

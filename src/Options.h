@@ -707,6 +707,9 @@ public:
 	static BOOL SetTextEditorPath(CString path);
 	static CString GetTextEditorPath();
 
+	static BOOL SetCustomEditorPath(CString path);
+	static CString GetCustomEditorPath();
+
 	static BOOL SetImageEditorPath(CString path);
 	static CString GetImageEditorPath();
 

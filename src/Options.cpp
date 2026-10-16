@@ -3154,6 +3154,16 @@ CString CGetSetOptions::GetTextEditorPath()
 	return GetProfileString("TextEditorPath", _T(""));
 }
 
+BOOL CGetSetOptions::SetCustomEditorPath(CString path)
+{
+	return SetProfileString("CustomEditorPath", path);
+}
+
+CString CGetSetOptions::GetCustomEditorPath()
+{
+	return GetProfileString("CustomEditorPath", _T(""));
+}
+
 BOOL CGetSetOptions::SetImageEditorPath(CString path)
 {
 	return SetProfileString("ImageEditorPath", path);

@@ -554,6 +554,10 @@
 		<Item English_Text = "Slugify Separator (default: -)" ID = "Slugify Separator (default: -)">Slugify 分隔符（默认 -）</Item>
 		<Item English_Text = "Support all types ignoring supported type list (default: false))" ID = "Support all types ignoring supported type list (default: false))">忽略支持类型列表并支持所有类型（默认：false）</Item>
 		<Item English_Text = "Text editor path (empty for system mapping)" ID = "Text editor path (empty for system mapping)">文本编辑器路径（留空则使用系统关联）</Item>
+		<Item English_Text = "Custom clip editor path" ID = "Custom clip editor path">自定义编辑剪贴项编辑器路径</Item>
+		<Item English_Text = "Editor used by the Custom Edit Clip command." ID = "Editor used by the Custom Edit Clip command.">“自定义编辑剪贴项”命令使用的编辑器。</Item>
+		<Item English_Text = "Please set the custom clip editor path in Options &gt; General &gt; Advanced." ID = "CustomEditorPathRequired">请先在“设置”→“常规”→“高级”中设置自定义编辑剪贴项编辑器路径。</Item>
+		<Item English_Text = "Unable to open the selected clips with the custom editor. Check the editor path and clip format." ID = "CustomEditorFailed">无法使用自定义编辑器打开所选剪贴项，请检查编辑器路径和剪贴项格式。</Item>
 		<Item English_Text = "Text lines per clip" ID = "Text lines per clip">每个剪贴项的文本行数</Item>
 		<Item English_Text = "Tooltip display characters" ID = "Tooltip display characters">工具提示显示字符数</Item>
 		<Item English_Text = "Tooltip display time(ms) max of 32000 (-1 default (5 seconds), 0 to turn off)" ID = "Tooltip display time(ms) max of 32000 (-1 default (5 seconds), 0 to turn off)">工具提示显示时间（毫秒，最大 32000；-1 为默认 5 秒，0 为关闭）</Item>
@@ -894,6 +898,7 @@
 		<Item English_Text = "Paste, Posixify Paths" ID = "138">粘贴，转换为 POSIX 路径</Item>
 		<Item English_Text = "Paste as Image" ID = "139">作为图片粘贴</Item>
 		<Item English_Text = "Show Starred Clips" ID = "140">显示已加星标剪贴项</Item>
+		<Item English_Text = "Custom Edit Clip" ID = "141">自定义编辑剪贴项</Item>
 	
 	</Ditto_Options_Quick_Paste_Keyboard>
 	

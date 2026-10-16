@@ -194,6 +194,7 @@ END_MESSAGE_MAP()
 #define SETTING_HIDE_TASKBAR_ICON_ON_CLOSE 109
 #define SETTING_USE_MODERN_SCROLLBAR 110
 #define SETTING_ENFORCE_CLIPBOARD_IGNORE_FORMATS 111
+#define SETTING_CUSTOM_EDITOR_PATH 112
 
 BOOL CAdvGeneral::OnInitDialog()
 {
@@ -335,6 +336,9 @@ BOOL CAdvGeneral::OnInitDialog()
 	CString szTextEditorFilter = AdvGeneralLang(_T("Applications(*.exe)|*.exe||"));
 	CMFCPropertyGridFileProperty* pTextEditorProp = new CMFCPropertyGridFileProperty(_T("Text editor path (empty for system mapping)"), TRUE, CGetSetOptions::GetTextEditorPath(), _T("exe"), 0, szTextEditorFilter, (LPCTSTR)0, SETTING_TEXT_EDITOR_PATH);
 	pGroupTest->AddSubItem(pTextEditorProp);
+
+	CMFCPropertyGridFileProperty* pCustomEditorProp = new CMFCPropertyGridFileProperty(_T("Custom clip editor path"), TRUE, CGetSetOptions::GetCustomEditorPath(), _T("exe"), 0, szTextEditorFilter, _T("Editor used by the Custom Edit Clip command."), SETTING_CUSTOM_EDITOR_PATH);
+	pGroupTest->AddSubItem(pCustomEditorProp);
 
 	AddTrueFalse(pGroupTest, _T("Paste clip in active window after selection"), CGetSetOptions::GetSendPasteAfterSelection(), SETTING_PASTE_IN_ACTIVE_WINDOW);	
 
@@ -978,6 +982,12 @@ void CAdvGeneral::OnBnClickedOk()
 				if (wcscmp(pNewValue->bstrVal, pOrigValue->bstrVal) != 0)
 				{
 					CGetSetOptions::SetTextEditorPath(pNewValue->bstrVal);
+				}
+				break;
+			case SETTING_CUSTOM_EDITOR_PATH:
+				if (wcscmp(pNewValue->bstrVal, pOrigValue->bstrVal) != 0)
+				{
+					CGetSetOptions::SetCustomEditorPath(pNewValue->bstrVal);
 				}
 				break;
 			case SETTING_IMAGE_EDITOR_PATH:

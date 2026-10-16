@@ -555,6 +555,10 @@
 		<Item English_Text = "Slugify Separator (default: -)" ID = "Slugify Separator (default: -)">Slugify Separator (default: -)</Item>
 		<Item English_Text = "Support all types ignoring supported type list (default: false))" ID = "Support all types ignoring supported type list (default: false))">Support all types ignoring supported type list (default: false))</Item>
 		<Item English_Text = "Text editor path (empty for system mapping)" ID = "Text editor path (empty for system mapping)">Text editor path (empty for system mapping)</Item>
+		<Item English_Text = "Custom clip editor path" ID = "Custom clip editor path">Custom clip editor path</Item>
+		<Item English_Text = "Editor used by the Custom Edit Clip command." ID = "Editor used by the Custom Edit Clip command.">Editor used by the Custom Edit Clip command.</Item>
+		<Item English_Text = "Please set the custom clip editor path in Options &gt; General &gt; Advanced." ID = "CustomEditorPathRequired">Please set the custom clip editor path in Options &gt; General &gt; Advanced.</Item>
+		<Item English_Text = "Unable to open the selected clips with the custom editor. Check the editor path and clip format." ID = "CustomEditorFailed">Unable to open the selected clips with the custom editor. Check the editor path and clip format.</Item>
 		<Item English_Text = "Text lines per clip" ID = "Text lines per clip">Text lines per clip</Item>
 		<Item English_Text = "Tooltip display characters" ID = "Tooltip display characters">Tooltip display characters</Item>
 		<Item English_Text = "Tooltip display time(ms) max of 32000 (-1 default (5 seconds), 0 to turn off)" ID = "Tooltip display time(ms) max of 32000 (-1 default (5 seconds), 0 to turn off)">Tooltip display time(ms) max of 32000 (-1 default (5 seconds), 0 to turn off)</Item>
@@ -895,6 +899,7 @@
 		<Item English_Text = "Paste, Posixify Paths" ID = "138">Paste, Posixify Paths</Item>
 		<Item English_Text = "Paste as Image" ID = "139">Paste as Image</Item>
 		<Item English_Text = "Show Starred Clips" ID = "140">Show Starred Clips</Item>
+		<Item English_Text = "Custom Edit Clip" ID = "141">Custom Edit Clip</Item>
 	</Ditto_Options_Quick_Paste_Keyboard>
 	
 </Ditto_Language_File>

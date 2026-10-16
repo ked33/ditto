@@ -247,7 +247,7 @@ public:
 	bool DoActionPrevTabControl();
 	bool DoActionShowGroups();
 	bool DoActionNewClip();
-	bool DoActionEditClip();
+	bool DoActionEditClip(bool useCustomEditor = false);
 	bool DoActionMoveSelectionDown();
 	bool DoActionToggleDescriptionWordWrap();
 	bool DoActionApplyLastSearch();

@@ -111,7 +111,7 @@ public:
 
 	void OnDeleteID(long lID);
 	BOOL GetClipData(long lID, CClipFormat& Clip);
-	bool EditItems(CClipIDs& Ids, bool bShowError, bool forceTextEdit);
+	bool EditItems(CClipIDs& Ids, bool bShowError, bool forceTextEdit, const CString& customEditorPath = _T(""));
 
 	CClipTypes* LoadTypesFromDB(); // returns a "new" allocated object
 	void ReloadTypes();

@@ -1098,7 +1098,7 @@ BOOL CCP_MainApp::GetClipData(long parentId, CClipFormat &Clip)
 	return bRet;
 }
 
-bool CCP_MainApp::EditItems(CClipIDs &Ids, bool bShowError, bool forceTextEdit)
+bool CCP_MainApp::EditItems(CClipIDs &Ids, bool bShowError, bool forceTextEdit, const CString& customEditorPath)
 {
 	bool ret = false;	
 	
@@ -1162,6 +1162,11 @@ bool CCP_MainApp::EditItems(CClipIDs &Ids, bool bShowError, bool forceTextEdit)
 			continue;
 		}
 
+		if (!customEditorPath.IsEmpty())
+		{
+			exePath = customEditorPath;
+		}
+
 		if((unicodeFile || asciFile || rtfFile) && exePath == _T(""))
 		{
 			Log(StrF(_T("Clip id %d is a text or rtf file without a specific editor set, using internal editor"), Ids[i]));
@@ -1202,15 +1207,23 @@ bool CCP_MainApp::EditItems(CClipIDs &Ids, bool bShowError, bool forceTextEdit)
 
 		m_editThread.WatchFile(savePath);
 
+		BOOL fileWritten = FALSE;
 		if (imageFile)
 		{
-			clip.WriteImageToFile(savePath);
+			fileWritten = clip.WriteImageToFile(savePath);
 		}
 		else
 		{
-			clip.WriteTextToFile(savePath, unicodeFile, asciFile, rtfFile, (id == -1));
+			fileWritten = clip.WriteTextToFile(savePath, unicodeFile, asciFile, rtfFile, (id == -1));
+		}
+
+		if (!fileWritten)
+		{
+			Log(StrF(_T("Failed to write edit file for clipId: %d"), id));
+			continue;
 		}		
 
+		CString parameters = StrF(_T("\"%s\""), savePath);
 		SHELLEXECUTEINFO sei = { sizeof(sei) };
 		sei.fMask = SEE_MASK_NOCLOSEPROCESS;
 		sei.lpVerb = _T("open");
@@ -1218,7 +1231,7 @@ bool CCP_MainApp::EditItems(CClipIDs &Ids, bool bShowError, bool forceTextEdit)
 		if (exePath != _T(""))
 		{
 			sei.lpFile = exePath;
-			sei.lpParameters = savePath;
+			sei.lpParameters = parameters;
 
 			Log(StrF(_T("Launching editor path: %s, file: %s"), exePath, savePath));
 		}
@@ -1233,9 +1246,15 @@ bool CCP_MainApp::EditItems(CClipIDs &Ids, bool bShowError, bool forceTextEdit)
 
 		if (ShellExecuteEx(&sei) == FALSE)
 		{
-			Log(StrF(_T("ShellExecuteEx failed, not editing clipid: %d"), id));
+			DWORD error = GetLastError();
+			Log(StrF(_T("ShellExecuteEx failed, not editing clipid: %d, error: %lu"), id, error));
 			continue;
 		}		
+
+		if (sei.hProcess != NULL)
+		{
+			CloseHandle(sei.hProcess);
+		}
 
 		/*DWORD PID = GetProcessId(sei.hProcess);
 
