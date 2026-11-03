@@ -651,6 +651,10 @@
 #define IDC_EDIT_ACTIVE_APP             2173
 #define IDC_CHECK_DO_NOT_HIDE_ON_DEACTIVATE 2174
 #define IDC_BUTTON_PREVIEW_THEME        2175
+#define IDC_STATIC_FIRST_COPY_PROCESS   2176
+#define IDC_FIRST_COPY_PROCESS          2177
+#define IDC_STATIC_LAST_COPY_PROCESS    2178
+#define IDC_LAST_COPY_PROCESS           2179
 #define IDC_EDIT_ADV_FILTER             5001
 #define IDC_NEXT_MATCH_BUTTON           5002
 #define ID_FIRST_OPTION                 32771
@@ -884,7 +888,7 @@
 #define _APS_3D_CONTROLS                     1
 #define _APS_NEXT_RESOURCE_VALUE        394
 #define _APS_NEXT_COMMAND_VALUE         33002
-#define _APS_NEXT_CONTROL_VALUE         2174
+#define _APS_NEXT_CONTROL_VALUE         2180
 #define _APS_NEXT_SYMED_VALUE           104
 #endif
 #endif

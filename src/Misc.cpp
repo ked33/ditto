@@ -1008,6 +1008,23 @@ CString UWP_AppName(HWND active_window, DWORD ownerpid)
 	return uwpAppName;
 }
 
+CString GetClipboardOwnerProcessName(DWORD* processId)
+{
+	DWORD ownerProcessId = 0;
+	HWND owner = ::GetClipboardOwner();
+	if (owner != NULL)
+	{
+		::GetWindowThreadProcessId(owner, &ownerProcessId);
+	}
+	if (processId != nullptr)
+	{
+		*processId = ownerProcessId;
+	}
+
+	// A foreground-window fallback cannot establish who supplied the clipboard.
+	return ownerProcessId != 0 ? GetProcessName(owner, ownerProcessId) : CString();
+}
+
 CString GetProcessName(HWND hWnd, DWORD processId) 
 {
 	DWORD startTick = GetTickCount();

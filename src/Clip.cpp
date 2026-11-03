@@ -235,7 +235,8 @@ CClip::CClip() :
 	m_clipGroupOrder(0),
 	m_globalShortCut(FALSE),
 	m_moveToGroupShortCut(0),
-	m_globalMoveToGroupShortCut(FALSE)
+	m_globalMoveToGroupShortCut(FALSE),
+	m_hasCopySource(false)
 {
 	m_copyReason = CopyReasonEnum::COPY_TO_UNKOWN;
 	m_addToDbStickyEnum = AddToDbStickyEnum::INVALID;
@@ -261,6 +262,9 @@ void CClip::Clear()
 	m_globalShortCut = FALSE;
 	m_moveToGroupShortCut = 0;
 	m_globalMoveToGroupShortCut = 0;
+	m_firstCopyProcess.Empty();
+	m_lastCopyProcess.Empty();
+	m_hasCopySource = false;
 	
 	EmptyFormats();
 }
@@ -280,6 +284,9 @@ const CClip& CClip::operator=(const CClip &clip)
 	m_csQuickPaste = clip.m_csQuickPaste;
 	m_moveToGroupShortCut = clip.m_moveToGroupShortCut;
 	m_globalMoveToGroupShortCut = clip.m_globalMoveToGroupShortCut;
+	m_firstCopyProcess = clip.m_firstCopyProcess;
+	m_lastCopyProcess = clip.m_lastCopyProcess;
+	m_hasCopySource = false;
 
 	INT_PTR nCount = clip.m_Formats.GetSize();
 	
@@ -347,8 +354,13 @@ bool CClip::AddFormat(CLIPFORMAT cfType, void* pData, UINT nLen, bool setDesc)
 }
 
 // Fills this CClip with the contents of the clipboard.
-int CClip::LoadFromClipboard(CClipTypes* pClipTypes, bool checkClipboardIgnore, CString activeApp, CString activeAppTitle)
+int CClip::LoadFromClipboard(CClipTypes* pClipTypes, bool checkClipboardIgnore, CString activeApp, CString activeAppTitle, CString sourceProcess, DWORD sourceSequence)
 {
+	m_firstCopyProcess.Empty();
+	m_lastCopyProcess.Empty();
+	m_hasCopySource = false;
+	const bool sourceMatches = sourceSequence != 0 && sourceSequence == ::GetClipboardSequenceNumber();
+
 	if(pClipTypes == NULL || pClipTypes->GetSize() == 0)
 	{
 		ASSERT(0); // this feature is not currently used... it is an error if it is.
@@ -673,6 +685,15 @@ int CClip::LoadFromClipboard(CClipTypes* pClipTypes, bool checkClipboardIgnore, 
 		}
 	}
 
+	// Only successful clipboard captures update provenance. If the clipboard
+	// changed while reading or retrying, keep the data but report an unknown source.
+	if (sourceMatches && sourceSequence == ::GetClipboardSequenceNumber())
+	{
+		m_firstCopyProcess = sourceProcess;
+		m_lastCopyProcess = sourceProcess;
+	}
+	m_hasCopySource = true;
+
 	return TRUE;
 }
 
@@ -783,12 +804,22 @@ bool CClip::AddToDB(bool bCheckForDuplicates)
 				MakeLatestOrder();
 				MakeLatestGroupOrder();
 
-				CString sql;
-				
-				sql.Format(_T("UPDATE Main SET clipOrder = %f where lID = %d;"), 
-								m_clipOrder, nID);
-
-				int ret = theApp.m_db.execDML(sql);
+				// Merge provenance into the existing write; firstCopyProcess is immutable.
+				CString sql = m_hasCopySource
+					? _T("UPDATE Main SET clipOrder = ?, lastCopyProcess = ? WHERE lID = ?;")
+					: _T("UPDATE Main SET clipOrder = ? WHERE lID = ?;");
+				CppSQLite3Statement stmt = theApp.m_db.compileStatement(sql);
+				stmt.bind(1, m_clipOrder);
+				if (m_hasCopySource)
+				{
+					stmt.bind(2, m_lastCopyProcess);
+					stmt.bind(3, nID);
+				}
+				else
+				{
+					stmt.bind(2, nID);
+				}
+				int ret = stmt.execDML();
 
 				int groupRet = -1;
 
@@ -959,8 +990,8 @@ bool CClip::AddToMainTable()
 		m_csQuickPaste.Replace(_T("'"), _T("''"));
 
 		CString cs;
-		cs.Format(_T("INSERT into Main (lDate, mText, lShortCut, lDontAutoDelete, CRC, bIsGroup, lParentID, QuickPasteText, clipOrder, clipGroupOrder, globalShortCut, lastPasteDate, stickyClipOrder, stickyClipGroupOrder, MoveToGroupShortCut, GlobalMoveToGroupShortCut) ")
-						_T("values(%lld, '%s', %d, %d, %d, %d, %d, '%s', %f, %f, %d, %lld, %f, %f, %d, %d);"),
+		cs.Format(_T("INSERT into Main (lDate, mText, lShortCut, lDontAutoDelete, CRC, bIsGroup, lParentID, QuickPasteText, clipOrder, clipGroupOrder, globalShortCut, lastPasteDate, stickyClipOrder, stickyClipGroupOrder, MoveToGroupShortCut, GlobalMoveToGroupShortCut, firstCopyProcess, lastCopyProcess) ")
+						_T("values(%lld, '%s', %d, %d, %d, %d, %d, '%s', %f, %f, %d, %lld, %f, %f, %d, %d, ?, ?);"),
 							m_Time.GetTime(),
 							m_Desc,
 							m_shortCut,
@@ -978,7 +1009,10 @@ bool CClip::AddToMainTable()
 							m_moveToGroupShortCut,
 							m_globalMoveToGroupShortCut);
 
-		theApp.m_db.execDML(cs);
+		CppSQLite3Statement stmt = theApp.m_db.compileStatement(cs);
+		stmt.bind(1, m_firstCopyProcess);
+		stmt.bind(2, m_lastCopyProcess);
+		stmt.execDML();
 
 		m_id = (long)theApp.m_db.lastRowId();
 
@@ -1562,6 +1596,9 @@ double CClip::GetNewLastOrder(int parentId, int clipId)
 
 BOOL CClip::LoadMainTable(int id)
 {
+	m_firstCopyProcess.Empty();
+	m_lastCopyProcess.Empty();
+	m_hasCopySource = false;
 	bool bRet = false;
 	try
 	{
@@ -1585,6 +1622,8 @@ BOOL CClip::LoadMainTable(int id)
 			m_stickyClipGroupOrder = q.getFloatField(_T("stickyClipGroupOrder"));
 			m_moveToGroupShortCut = q.getIntField(_T("MoveToGroupShortCut"));
 			m_globalMoveToGroupShortCut = q.getIntField(_T("GlobalMoveToGroupShortCut"));
+			m_firstCopyProcess = q.getStringField(_T("firstCopyProcess"));
+			m_lastCopyProcess = q.getStringField(_T("lastCopyProcess"));
 
 			m_id = id;
 

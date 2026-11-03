@@ -25,7 +25,9 @@ CClipboardViewer::CClipboardViewer(CCopyThread* pHandler) :
 	m_bIsConnected(false),
 	m_bConnect(false),
 	m_dwLastCopy(0),
-	m_connectOnStartup(true)
+	m_connectOnStartup(true),
+	m_copySourceSequence(0),
+	m_hasPendingCopy(false)
 {
 	m_activeWindowTitle = _T("");
 	m_activeWindow = _T("");
@@ -113,6 +115,8 @@ void CClipboardViewer::Disconnect(bool bSendPing)
 	Log(_T("Disconnect From Clipboard"));
 
 	KillTimer(TIMER_ENSURE_VIEWER_IN_CHAIN);
+	KillTimer(TIMER_DRAW_CLIPBOARD);
+	m_hasPendingCopy = false;
 	bool removeOldWay = true;
 
 	if(IsVista())
@@ -278,6 +282,12 @@ void CClipboardViewer::OnDrawClipboard()
 		return;
 	}
 
+	// Cancel the old event even when this change will be excluded below.
+	KillTimer(TIMER_DRAW_CLIPBOARD);
+	m_copySourceProcess.Empty();
+	m_copySourceSequence = 0;
+	m_hasPendingCopy = false;
+
 	// don't process the event when we first attach
 	if(m_pHandler && !m_bCalling_SetClipboardViewer)
 	{
@@ -289,7 +299,7 @@ void CClipboardViewer::OnDrawClipboard()
 				{          
 					Log(StrF(_T("OnDrawClipboard:: *** SetTimer *** %d"), GetTickCount()));
 
-					KillTimer(TIMER_DRAW_CLIPBOARD);
+					m_hasPendingCopy = true;
 					SetTimer(TIMER_DRAW_CLIPBOARD, CGetSetOptions::m_lProcessDrawClipboardDelay, NULL);		
 				}
 			}
@@ -319,17 +329,13 @@ bool CClipboardViewer::ValidActiveWnd()
 	m_activeWindow = _T("");
 	m_activeWindowTitle = _T("");
 
-	HWND owner = ::GetClipboardOwner();
-	if (owner != NULL)
+	m_copySourceSequence = ::GetClipboardSequenceNumber();
+	DWORD ownerProcessId = 0;
+	m_activeWindow = GetClipboardOwnerProcessName(&ownerProcessId);
+	m_copySourceProcess = m_activeWindow;
+	if (ownerProcessId != 0)
 	{
-		DWORD PID = 0;
-		::GetWindowThreadProcessId(owner, &PID);
-
-		if (PID != 0)
-		{
-			m_activeWindow = GetProcessName(NULL, PID);
-			m_activeWindowTitle = TopLevelWindowText(PID);			
-		}
+		m_activeWindowTitle = TopLevelWindowText(ownerProcessId);
 	}
 
 	//L"RuntimeBroker.exe" is what all modern apps report as
@@ -409,7 +415,24 @@ void CClipboardViewer::OnTimer(UINT_PTR nIDEvent)
 	case TIMER_DRAW_CLIPBOARD:
 		{
 			KillTimer(nIDEvent);
-		
+			// KillTimer does not remove a WM_TIMER already waiting in the queue.
+			if (!m_hasPendingCopy)
+			{
+				break;
+			}
+			m_hasPendingCopy = false;
+
+			// Clipboard reads can pump messages. Consume this snapshot before reading
+			// so a reentrant notification can leave its own pending snapshot intact.
+			CString activeWindow = m_activeWindow;
+			CString activeWindowTitle = m_activeWindowTitle;
+			CString sourceProcess = m_copySourceProcess;
+			DWORD sourceSequence = m_copySourceSequence;
+			m_activeWindow.Empty();
+			m_activeWindowTitle.Empty();
+			m_copySourceProcess.Empty();
+			m_copySourceSequence = 0;
+
 			DWORD dwNow = GetTickCount();
 
 			if(dwNow - m_dwLastCopy > CGetSetOptions::m_dwSaveClipDelay || m_dwLastCopy > dwNow)
@@ -418,7 +441,7 @@ void CClipboardViewer::OnTimer(UINT_PTR nIDEvent)
 				{
 					Log(StrF(_T("OnDrawClipboard::OnTimer %d"), dwNow));
 
-					m_pHandler->OnClipboardChange(m_activeWindow, m_activeWindowTitle);
+					m_pHandler->OnClipboardChange(activeWindow, activeWindowTitle, sourceProcess, sourceSequence);
 
 					m_dwLastCopy = dwNow;
 				}
@@ -428,8 +451,6 @@ void CClipboardViewer::OnTimer(UINT_PTR nIDEvent)
 				Log(StrF(_T("Clip copy to fast difference from last copy = %d"), (dwNow - m_dwLastCopy)));
 			}
 
-			m_activeWindow = _T("");
-			m_activeWindowTitle = _T("");
 		}
 		break;
 

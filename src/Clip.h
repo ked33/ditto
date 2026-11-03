@@ -150,6 +150,11 @@ public:
 	int m_moveToGroupShortCut;
 	BOOL m_globalMoveToGroupShortCut;
 	CopyReasonEnum::CopyReason m_copyReason;
+	CString m_firstCopyProcess;
+	CString m_lastCopyProcess;
+	// Transient: an unknown clipboard source still updates the last source;
+	// importing or cloning a clip must not replace another clip's provenance.
+	bool m_hasCopySource;
 
 	virtual CString Description() { return m_Desc; }
 	virtual void Description(CString csValue) { m_Desc = csValue; }
@@ -169,7 +174,7 @@ public:
 	void Clear();
 	void EmptyFormats();
 	bool AddFormat(CLIPFORMAT cfType, void* pData, UINT nLen, bool setDesc = false);
-	int LoadFromClipboard(CClipTypes* pClipTypes, bool checkClipboardIgnore = true, CString activeApp = _T(""), CString activeAppTitle = _T(""));
+	int LoadFromClipboard(CClipTypes* pClipTypes, bool checkClipboardIgnore = true, CString activeApp = _T(""), CString activeAppTitle = _T(""), CString sourceProcess = _T(""), DWORD sourceSequence = 0);
 	bool SetDescFromText(HGLOBAL hgData, bool unicode);
 	bool SetDescFromType();
 	bool AddToDB(bool bCheckForDuplicates = true);

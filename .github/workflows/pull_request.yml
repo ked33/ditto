@@ -23,5 +23,8 @@ jobs:
         shell: pwsh
         run: .\.github\scripts\Restore-NativePackages.ps1
 
+      - name: Verify copy-source persistence and wiring
+        run: python -B tests/copy_source_regression.py
+
       - name: Build 64bit
         run: msbuild CP_Main_10.sln /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=${{ env.CI_PLATFORM_TOOLSET }}

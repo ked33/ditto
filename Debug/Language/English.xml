@@ -194,6 +194,8 @@
 		<Item English_Text = "Quick Paste Text" ID = "2125"></Item>
 		<Item English_Text = "Selected format MD5" ID = "2167"></Item>
 				
+		<Item English_Text = "First Copy Source" ID = "2176">First Copy Source</Item>
+		<Item English_Text = "Last Copy Source" ID = "2178">Last Copy Source</Item>
 	</Ditto_Clip_Properties>
 	<Ditto_Options_General>
 		<Item English_Text = "Start Ditto on System Startup" ID = "2004"></Item>
@@ -362,6 +364,8 @@
 		<Item English_Text = "Move to Group" ID = "-1"></Item>
 	</Ditto_Move_To_Groups>
 	<Ditto_String_Table>
+		<Item English_Text = "Unknown" ID = "CopySourceUnknown">Unknown</Item>
+		<Item English_Text = "Not applicable" ID = "CopySourceNotApplicable">Not applicable</Item>
 		<Item English_Text = "General" ID = "GeneralTitle"></Item>
 		<Item English_Text = "Supported Types" ID = "SupportedTypesTitle"></Item>
 		<Item English_Text = "Stats" ID = "StatsTitle"></Item>

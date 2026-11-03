@@ -32,6 +32,8 @@ public:
 	CListBox	m_lCopyData;
 	CString	m_eDate;
 	CString m_lastPasteDate;
+	CString m_firstCopyProcess;
+	CString m_lastCopyProcess;
 	BOOL	m_bNeverAutoDelete;
 	BOOL m_hotKeyGlobal;
 	BOOL m_moveToGroupHotKeyGlobal;

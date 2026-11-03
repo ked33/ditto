@@ -289,6 +289,47 @@ void ReOrderStickyClips(int parentID, CppSQLite3DB& db)
 	CATCH_SQLITE_EXCEPTION
 }
 
+static void EnsureCopySourceColumns(CppSQLite3DB& db)
+{
+	bool hasFirstCopyProcess = false;
+	bool hasLastCopyProcess = false;
+	{
+		CppSQLite3Query columns = db.execQuery(_T("PRAGMA table_info(Main);"));
+		while (!columns.eof())
+		{
+			CString name = columns.getStringField(_T("name"));
+			hasFirstCopyProcess |= name.CompareNoCase(_T("firstCopyProcess")) == 0;
+			hasLastCopyProcess |= name.CompareNoCase(_T("lastCopyProcess")) == 0;
+			columns.nextRow();
+		}
+	}
+	if (hasFirstCopyProcess && hasLastCopyProcess)
+	{
+		return;
+	}
+
+	// Constant defaults preserve old records as unknown without rewriting them.
+	db.execDML(_T("SAVEPOINT CopySourceMigration;"));
+	try
+	{
+		if (!hasFirstCopyProcess)
+		{
+			db.execDML(_T("ALTER TABLE Main ADD COLUMN firstCopyProcess TEXT NOT NULL DEFAULT '';"));
+		}
+		if (!hasLastCopyProcess)
+		{
+			db.execDML(_T("ALTER TABLE Main ADD COLUMN lastCopyProcess TEXT NOT NULL DEFAULT '';"));
+		}
+		db.execDML(_T("RELEASE CopySourceMigration;"));
+	}
+	catch (...)
+	{
+		db.execDML(_T("ROLLBACK TO CopySourceMigration;"));
+		db.execDML(_T("RELEASE CopySourceMigration;"));
+		throw;
+	}
+}
+
 BOOL ValidDB(CString csPath, BOOL bUpgrade)
 {
 	try
@@ -475,6 +516,8 @@ BOOL ValidDB(CString csPath, BOOL bUpgrade)
 
 			e.errorCode();
 		}
+
+		EnsureCopySourceColumns(db);
 
 		db.execDML(_T("DROP INDEX IF EXISTS Main_NoGroup"));
 		db.execDML(_T("DROP INDEX IF EXISTS Main_InGroup"));
@@ -721,7 +764,9 @@ BOOL CreateDB(CString csFile)
 			_T("stickyClipOrder REAL, ")
 			_T("stickyClipGroupOrder REAL, ")
 			_T("MoveToGroupShortCut INTEGER, ")
-			_T("GlobalMoveToGroupShortCut INTEGER);"));
+			_T("GlobalMoveToGroupShortCut INTEGER, ")
+			_T("firstCopyProcess TEXT NOT NULL DEFAULT '', ")
+			_T("lastCopyProcess TEXT NOT NULL DEFAULT '');"));
 
 		db.execDML(_T("CREATE TABLE Data(")
 			_T("lID INTEGER PRIMARY KEY AUTOINCREMENT, ")

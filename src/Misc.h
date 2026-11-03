@@ -196,6 +196,7 @@ void OnInitMenuPopupEx(CMenu *pPopupMenu, UINT nIndex, BOOL bSysMenu, CWnd *pWnd
 CString InternetEncode(CString text);
 
 CString GetProcessName(HWND hWnd, DWORD processId = 0);
+CString GetClipboardOwnerProcessName(DWORD* processId = nullptr);
 
 void DeleteParamFromRTF(CStringA &test, CStringA find, bool searchForTrailingDigits);
 

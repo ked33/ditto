@@ -1424,7 +1424,9 @@ void CMainFrame::OnFirstSavecurrentclipboard()
 		CClipTypes* pTypes = theApp.LoadTypesFromDB();
 		if(pTypes)
 		{
-			if(pClip->LoadFromClipboard(pTypes, false, _T("")))
+			const DWORD sourceSequence = ::GetClipboardSequenceNumber();
+			const CString sourceProcess = GetClipboardOwnerProcessName();
+			if(pClip->LoadFromClipboard(pTypes, false, _T(""), _T(""), sourceProcess, sourceSequence) == TRUE)
 			{
 				Log(_T("Loaded clips from the clipboard, sending message to save to the db"));
 				::PostMessage(m_hWnd, WM_CLIPBOARD_COPIED, (WPARAM)pClip, 0);

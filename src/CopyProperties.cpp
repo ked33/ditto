@@ -49,6 +49,8 @@ void CCopyProperties::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_COPY_DATA, m_lCopyData);
 	DDX_Text(pDX, IDC_DATE, m_eDate);
 	DDX_Text(pDX, IDC_DATE_LAST_USED, m_lastPasteDate);
+	DDX_Text(pDX, IDC_FIRST_COPY_PROCESS, m_firstCopyProcess);
+	DDX_Text(pDX, IDC_LAST_COPY_PROCESS, m_lastCopyProcess);
 	DDX_Check(pDX, IDC_NEVER_AUTO_DELETE, m_bNeverAutoDelete);
 	DDX_Check(pDX, IDC_HOT_KEY_GLOBAL, m_hotKeyGlobal);
 	DDX_Control(pDX, IDC_HOTKEY_MOVE_TO_GROUP, m_MoveToGrouHotKey);
@@ -121,6 +123,8 @@ BOOL CCopyProperties::OnInitDialog()
 	m_Resize.AddControl(IDOK, DR_MoveTop | DR_MoveLeft);
 	m_Resize.AddControl(IDCANCEL, DR_MoveTop | DR_MoveLeft);
 	m_Resize.AddControl(IDC_EDIT_QUICK_PASTE, DR_SizeWidth);
+	m_Resize.AddControl(IDC_FIRST_COPY_PROCESS, DR_SizeWidth);
+	m_Resize.AddControl(IDC_LAST_COPY_PROCESS, DR_SizeWidth);
 	m_Resize.AddControl(IDC_COMBO1, DR_SizeWidth);
 	m_Resize.AddControl(IDC_STATIC_MD5, DR_MoveTop | DR_MoveLeft);
 	m_Resize.AddControl(IDC_EDIT_MD5, DR_MoveTop | DR_MoveLeft);
@@ -146,6 +150,18 @@ void CCopyProperties::LoadDataFromCClip(CClip &Clip)
 	
 	COleDateTime lastPasteDate(Clip.m_lastPasteDate.GetTime());
 	m_lastPasteDate = lastPasteDate.Format();
+
+	CString unknownSource = theApp.m_Language.GetString(_T("CopySourceUnknown"), _T("Unknown"));
+	if (Clip.m_bIsGroup)
+	{
+		m_firstCopyProcess = theApp.m_Language.GetString(_T("CopySourceNotApplicable"), _T("Not applicable"));
+		m_lastCopyProcess = m_firstCopyProcess;
+	}
+	else
+	{
+		m_firstCopyProcess = Clip.m_firstCopyProcess.IsEmpty() ? unknownSource : Clip.m_firstCopyProcess;
+		m_lastCopyProcess = Clip.m_lastCopyProcess.IsEmpty() ? unknownSource : Clip.m_lastCopyProcess;
+	}
 
 	m_description.SetWindowText(Clip.m_Desc);
 	

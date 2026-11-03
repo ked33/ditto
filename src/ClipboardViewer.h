@@ -34,6 +34,9 @@ public:
 	bool	m_connectOnStartup;
 	CString m_activeWindow;
 	CString m_activeWindowTitle;
+	CString m_copySourceProcess;
+	DWORD m_copySourceSequence;
+	bool m_hasPendingCopy;
 
 	// m_pHandler->OnClipboardChange is called when the clipboard changes.
 	CCopyThread*	m_pHandler;
