@@ -26,7 +26,6 @@ CClipboardViewer::CClipboardViewer(CCopyThread* pHandler) :
 	m_bConnect(false),
 	m_dwLastCopy(0),
 	m_connectOnStartup(true),
-	m_copySourceSequence(0),
 	m_hasPendingCopy(false)
 {
 	m_activeWindowTitle = _T("");
@@ -285,7 +284,7 @@ void CClipboardViewer::OnDrawClipboard()
 	// Cancel the old event even when this change will be excluded below.
 	KillTimer(TIMER_DRAW_CLIPBOARD);
 	m_copySourceProcess.Empty();
-	m_copySourceSequence = 0;
+	m_copySourceContext = ClipboardSourceContext();
 	m_hasPendingCopy = false;
 
 	// don't process the event when we first attach
@@ -329,13 +328,15 @@ bool CClipboardViewer::ValidActiveWnd()
 	m_activeWindow = _T("");
 	m_activeWindowTitle = _T("");
 
-	m_copySourceSequence = ::GetClipboardSequenceNumber();
-	DWORD ownerProcessId = 0;
-	m_activeWindow = GetClipboardOwnerProcessName(&ownerProcessId);
+	m_activeWindow = GetClipboardSourceProcessName(m_copySourceContext);
 	m_copySourceProcess = m_activeWindow;
-	if (ownerProcessId != 0)
+	if (m_copySourceContext.owner != nullptr && m_copySourceContext.processId != 0)
 	{
-		m_activeWindowTitle = TopLevelWindowText(ownerProcessId);
+		m_activeWindowTitle = TopLevelWindowText(m_copySourceContext.processId);
+	}
+	else if (m_copySourceContext.window != nullptr)
+	{
+		m_activeWindowTitle = GetWndText(m_copySourceContext.window);
 	}
 
 	//L"RuntimeBroker.exe" is what all modern apps report as
@@ -427,11 +428,11 @@ void CClipboardViewer::OnTimer(UINT_PTR nIDEvent)
 			CString activeWindow = m_activeWindow;
 			CString activeWindowTitle = m_activeWindowTitle;
 			CString sourceProcess = m_copySourceProcess;
-			DWORD sourceSequence = m_copySourceSequence;
+			ClipboardSourceContext sourceContext = m_copySourceContext;
 			m_activeWindow.Empty();
 			m_activeWindowTitle.Empty();
 			m_copySourceProcess.Empty();
-			m_copySourceSequence = 0;
+			m_copySourceContext = ClipboardSourceContext();
 
 			DWORD dwNow = GetTickCount();
 
@@ -441,7 +442,7 @@ void CClipboardViewer::OnTimer(UINT_PTR nIDEvent)
 				{
 					Log(StrF(_T("OnDrawClipboard::OnTimer %d"), dwNow));
 
-					m_pHandler->OnClipboardChange(activeWindow, activeWindowTitle, sourceProcess, sourceSequence);
+					m_pHandler->OnClipboardChange(activeWindow, activeWindowTitle, sourceProcess, sourceContext);
 
 					m_dwLastCopy = dwNow;
 				}

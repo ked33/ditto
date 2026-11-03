@@ -193,8 +193,7 @@
 		<Item English_Text = "Quick Paste Text" ID = "2125">快速粘贴文本</Item>
 		<Item English_Text = "Selected format MD5" ID = "2167">选择MD5格式</Item>
 				
-		<Item English_Text = "First Copy Source" ID = "2176">首次复制来源</Item>
-		<Item English_Text = "Last Copy Source" ID = "2178">最后复制来源</Item>
+		<Item English_Text = "Copy Source" ID = "2176">复制来源</Item>
 	</Ditto_Clip_Properties>
 	<Ditto_Options_General>
 		<Item English_Text = "Start Ditto on System Startup" ID = "2004">系统启动时运行</Item>

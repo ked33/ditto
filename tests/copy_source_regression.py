@@ -45,19 +45,17 @@ CLIP_SOURCE = source("src/Clip.cpp")
 CREATE_MAIN = joined_sql(DB_SOURCE, "CREATE TABLE Main(")
 MIGRATION = function("src/DatabaseUtilities.cpp", "static void EnsureCopySourceColumns(")
 MIGRATE_FIRST = sql_starting(MIGRATION, "ALTER TABLE Main ADD COLUMN firstCopyProcess")
-MIGRATE_LAST = sql_starting(MIGRATION, "ALTER TABLE Main ADD COLUMN lastCopyProcess")
 ADD_TO_DB = function("src/Clip.cpp", "bool CClip::AddToDB(")
-UPDATE_COPY = sql_starting(ADD_TO_DB, "UPDATE Main SET clipOrder = ?, lastCopyProcess")
-UPDATE_OTHER = sql_starting(ADD_TO_DB, "UPDATE Main SET clipOrder = ? WHERE")
+UPDATE_ORDER = sql_starting(ADD_TO_DB, "UPDATE Main SET clipOrder = ? WHERE")
 INSERT_TEMPLATE = joined_sql(CLIP_SOURCE, "INSERT into Main ")
 # The existing numeric/description fields still use CString::Format. Substitute
-# fixed fixture values, leaving the two real bound source parameters intact.
+# fixed fixture values, leaving the real bound source parameter intact.
 INSERT = re.sub(r"%lld|%[sdf]", lambda m: "fixture" if m[0] == "%s" else "1", INSERT_TEMPLATE)
 
 
 def migrate(db, fail_after_first=False):
     columns = {row[1].lower() for row in db.execute(sql_starting(MIGRATION, "PRAGMA"))}
-    if {"firstcopyprocess", "lastcopyprocess"} <= columns:
+    if "firstcopyprocess" in columns:
         return
     db.execute(sql_starting(MIGRATION, "SAVEPOINT"))
     try:
@@ -65,8 +63,6 @@ def migrate(db, fail_after_first=False):
             db.execute(MIGRATE_FIRST)
         if fail_after_first:
             raise RuntimeError("injected migration failure")
-        if "lastcopyprocess" not in columns:
-            db.execute(MIGRATE_LAST)
         db.execute(sql_starting(MIGRATION, "RELEASE"))
     except Exception:
         db.execute(sql_starting(MIGRATION, "ROLLBACK"))
@@ -82,66 +78,67 @@ class CopySourceSqlTests(unittest.TestCase):
     def create(self):
         self.db.execute(CREATE_MAIN)
 
-    def insert(self, first="chrome.exe", last="chrome.exe"):
-        return self.db.execute(INSERT, (first, last)).lastrowid
+    def insert(self, process="chrome.exe"):
+        return self.db.execute(INSERT, (process,)).lastrowid
 
     def sources(self, clip_id):
         return self.db.execute(
-            "SELECT firstCopyProcess, lastCopyProcess FROM Main WHERE lID=?", (clip_id,)
-        ).fetchone()
+            "SELECT firstCopyProcess FROM Main WHERE lID=?", (clip_id,)
+        ).fetchone()[0]
 
     def legacy(self):
         self.db.execute("CREATE TABLE Main(lID INTEGER PRIMARY KEY, clipOrder REAL)")
         self.db.execute("INSERT INTO Main VALUES(1, 1)")
         self.db.commit()
 
-    def test_new_copy_initializes_both_sources(self):
+    def test_new_copy_initializes_source(self):
         self.create()
-        self.assertEqual(self.sources(self.insert()), ("chrome.exe", "chrome.exe"))
+        self.assertEqual(self.sources(self.insert()), "chrome.exe")
+        self.assertNotIn("lastCopyProcess", CREATE_MAIN)
 
     def test_existing_group_insert_uses_unknown_defaults(self):
         self.create()
         clip_id = self.db.execute("INSERT INTO Main(mText, bIsGroup) VALUES('group', 1)").lastrowid
-        self.assertEqual(self.sources(clip_id), ("", ""))
+        self.assertEqual(self.sources(clip_id), "")
 
-    def test_duplicate_only_changes_last_source(self):
+    def test_duplicate_preserves_original_source(self):
         self.create()
         clip_id = self.insert()
-        for order, process in enumerate(("notepad.exe", "notepad.exe", "", "code.exe"), 2):
-            self.db.execute(UPDATE_COPY, (order, process, clip_id))
-            self.assertEqual(self.sources(clip_id), ("chrome.exe", process))
+        for order in range(2, 6):
+            self.db.execute(UPDATE_ORDER, (order, clip_id))
+            self.assertEqual(self.sources(clip_id), "chrome.exe")
         self.assertEqual(self.db.execute("SELECT count(*) FROM Main").fetchone()[0], 1)
 
-    def test_old_first_source_stays_unknown_after_recapture(self):
+    def test_old_source_stays_unknown_after_recapture(self):
         self.legacy()
         migrate(self.db)
-        self.assertEqual(self.sources(1), ("", ""))
-        self.db.execute(UPDATE_COPY, (2, "notepad.exe", 1))
-        self.assertEqual(self.sources(1), ("", "notepad.exe"))
+        self.assertEqual(self.sources(1), "")
+        self.db.execute(UPDATE_ORDER, (2, 1))
+        self.assertEqual(self.sources(1), "")
 
     def test_independent_duplicate_and_clone_keep_their_sources(self):
         self.create()
         first = self.insert()
-        second = self.insert("code.exe", "code.exe")
-        self.db.execute(UPDATE_COPY, (3, "notepad.exe", first))
-        clone = self.insert(*self.sources(first))
-        self.assertEqual(self.sources(second), ("code.exe", "code.exe"))
-        self.assertEqual(self.sources(clone), ("chrome.exe", "notepad.exe"))
+        second = self.insert("code.exe")
+        self.db.execute(UPDATE_ORDER, (3, first))
+        clone = self.insert(self.sources(first))
+        self.assertEqual(self.sources(second), "code.exe")
+        self.assertEqual(self.sources(clone), "chrome.exe")
 
     def test_import_or_sort_preserves_existing_sources(self):
         self.create()
         clip_id = self.insert()
-        self.db.execute(UPDATE_OTHER, (3, clip_id))
-        self.assertEqual(self.sources(clip_id), ("chrome.exe", "chrome.exe"))
-        self.assertEqual(self.sources(self.insert("", "")), ("", ""))
+        self.db.execute(UPDATE_ORDER, (3, clip_id))
+        self.assertEqual(self.sources(clip_id), "chrome.exe")
+        self.assertEqual(self.sources(self.insert("")), "")
 
     def test_bound_process_names_handle_unicode_quotes_and_sql_characters(self):
         self.create()
         process = "工具'中文.exe; -- ? %"
-        clip_id = self.insert(process, process)
-        self.assertEqual(self.sources(clip_id), (process, process))
-        self.db.execute(UPDATE_COPY, (2, process + "2", clip_id))
-        self.assertEqual(self.sources(clip_id), (process, process + "2"))
+        clip_id = self.insert(process)
+        self.assertEqual(self.sources(clip_id), process)
+        self.db.execute(UPDATE_ORDER, (2, clip_id))
+        self.assertEqual(self.sources(clip_id), process)
 
     def test_migration_is_idempotent_and_does_not_update_old_rows(self):
         self.legacy()
@@ -149,18 +146,20 @@ class CopySourceSqlTests(unittest.TestCase):
         migrate(self.db)
         migrate(self.db)
         self.assertEqual(self.db.total_changes, before)
-        self.assertEqual(self.sources(1), ("", ""))
-        self.assertEqual(len(list(self.db.execute("PRAGMA table_info(Main)"))), 4)
+        self.assertEqual(self.sources(1), "")
+        self.assertEqual(len(list(self.db.execute("PRAGMA table_info(Main)"))), 3)
 
-    def test_each_partial_migration_preserves_existing_metadata(self):
-        for statement, column in ((MIGRATE_FIRST, "firstCopyProcess"), (MIGRATE_LAST, "lastCopyProcess")):
-            with self.subTest(column=column):
-                self.db.execute("DROP TABLE IF EXISTS Main")
-                self.legacy()
-                self.db.execute(statement)
-                self.db.execute(f"UPDATE Main SET {column}='existing.exe'")
-                migrate(self.db)
-                self.assertEqual(self.db.execute(f"SELECT {column} FROM Main").fetchone()[0], "existing.exe")
+    def test_previous_two_source_database_needs_no_rewrite(self):
+        self.legacy()
+        self.db.execute(MIGRATE_FIRST)
+        self.db.execute("ALTER TABLE Main ADD COLUMN lastCopyProcess TEXT NOT NULL DEFAULT ''")
+        self.db.execute("UPDATE Main SET firstCopyProcess='original.exe', lastCopyProcess='latest.exe'")
+        before = self.db.total_changes
+        migrate(self.db)
+        self.assertEqual(self.db.total_changes, before)
+        self.db.execute(UPDATE_ORDER, (3, 1))
+        self.assertEqual(self.sources(1), "original.exe")
+        self.assertEqual(self.db.execute("SELECT lastCopyProcess FROM Main").fetchone()[0], "latest.exe")
 
     def test_migration_rolls_back_and_can_retry(self):
         self.legacy()
@@ -168,9 +167,9 @@ class CopySourceSqlTests(unittest.TestCase):
             migrate(self.db, fail_after_first=True)
         self.assertEqual(len(list(self.db.execute("PRAGMA table_info(Main)"))), 2)
         migrate(self.db)
-        self.assertEqual(self.sources(1), ("", ""))
+        self.assertEqual(self.sources(1), "")
 
-    def test_source_update_has_no_data_or_fulltext_work(self):
+    def test_duplicate_update_has_no_source_data_or_fulltext_work(self):
         self.create()
         self.db.execute("CREATE TABLE Data(lParentID INTEGER, strClipBoardFormat TEXT, ooData BLOB)")
         execute_all(self.db, [sql for sql in SCHEMA if "MainFullTextLiteral" not in sql])
@@ -185,11 +184,12 @@ class CopySourceSqlTests(unittest.TestCase):
 
         before = self.db.total_changes
         self.db.set_authorizer(authorize)
-        self.db.execute(UPDATE_COPY, (2, "notepad.exe", clip_id))
+        self.db.execute(UPDATE_ORDER, (2, clip_id))
         self.db.set_authorizer(None)
         self.assertEqual(self.db.total_changes - before, 1)
         self.assertTrue(accesses)
         self.assertTrue(all(table == "Main" and trigger is None for table, _, trigger in accesses), accesses)
+        self.assertFalse(any("CopyProcess" in (column or "") for _, column, _ in accesses))
 
 
 class CopySourceStaticChecks(unittest.TestCase):
@@ -199,6 +199,8 @@ class CopySourceStaticChecks(unittest.TestCase):
                 self.check_delimiters(f"src/{stem}.{extension}")
         for name in ("src/MainFrm.cpp", "src/DatabaseUtilities.cpp"):
             self.check_delimiters(name)
+        self.check_delimiters("src/ClipboardSource.h")
+        self.check_delimiters("tests/clipboard_source_smoke.cpp")
 
     def check_delimiters(self, name):
         stack = []
@@ -212,39 +214,43 @@ class CopySourceStaticChecks(unittest.TestCase):
 
     def test_capture_and_retry_pass_the_same_event_snapshot(self):
         thread = source("src/CopyThread.cpp")
-        call = "LoadFromClipboard(pSupportedTypes, true, activeWindow, activeWindowTitle, sourceProcess, sourceSequence)"
+        call = "LoadFromClipboard(pSupportedTypes, true, activeWindow, activeWindowTitle, sourceProcess, sourceContext)"
         self.assertEqual(thread.count(call), 2)
         capture = function("src/Clip.cpp", "int CClip::LoadFromClipboard(")
-        self.assertIn("sourceSequence != 0 && sourceSequence == ::GetClipboardSequenceNumber()", capture)
-        self.assertIn("sourceMatches && sourceSequence == ::GetClipboardSequenceNumber()", capture)
-        self.assertLess(capture.rindex("return -1;"), capture.index("m_hasCopySource = true;"))
+        self.assertIn("sourceMatches = sourceContext.IsCurrent()", capture)
+        self.assertIn("sourceStillMatches = sourceMatches && sourceContext.IsCurrent()", capture)
+        self.assertLess(capture.index("sourceStillMatches ="), capture.index("bool calledOnCopyScript"))
+        self.assertLess(capture.rindex("return -1;"), capture.index("m_copyProcess = sourceProcess;"))
         viewer = function("src/ClipboardViewer.cpp", "bool CClipboardViewer::ValidActiveWnd(")
         self.assertLess(viewer.index("m_copySourceProcess = m_activeWindow"), viewer.index("::GetForegroundWindow()"))
-        self.assertEqual(viewer.count("GetClipboardOwnerProcessName("), 1)
-        helper = function("src/Misc.cpp", "CString GetClipboardOwnerProcessName(")
-        self.assertNotIn("GetForegroundWindow", helper)
-        self.assertIn("GetProcessName(owner, ownerProcessId)", helper)
+        self.assertEqual(viewer.count("GetClipboardSourceProcessName("), 1)
+        helper = function("src/Misc.cpp", "CString GetClipboardSourceProcessName(")
+        self.assertIn("GetProcessName(source.window, source.processId)", helper)
+        self.assertIn("GetClipboardSourceProcessName(sourceContext, false)", source("src/MainFrm.cpp"))
         timer = function("src/ClipboardViewer.cpp", "void CClipboardViewer::OnTimer(")
-        self.assertLess(timer.index("m_copySourceSequence = 0"), timer.index("m_pHandler->OnClipboardChange("))
+        self.assertLess(timer.index("m_copySourceContext = ClipboardSourceContext()"), timer.index("m_pHandler->OnClipboardChange("))
         self.assertLess(timer.index("if (!m_hasPendingCopy)"), timer.index("m_pHandler->OnClipboardChange("))
         draw = function("src/ClipboardViewer.cpp", "void CClipboardViewer::OnDrawClipboard(")
         self.assertLess(draw.index("m_hasPendingCopy = false;"), draw.index("ValidActiveWnd()"))
 
     def test_import_clone_and_property_save_do_not_recapture(self):
-        for signature in ("void CClip::Clear(", "const CClip& CClip::operator=(", "BOOL CClip::LoadMainTable("):
-            self.assertIn("m_hasCopySource = false;", function("src/Clip.cpp", signature))
+        self.assertIn("m_copyProcess.Empty();", function("src/Clip.cpp", "void CClip::Clear("))
+        self.assertIn("m_copyProcess = clip.m_copyProcess;", function("src/Clip.cpp", "const CClip& CClip::operator=("))
         modify = function("src/Clip.cpp", "bool CClip::ModifyMainTable(")
         self.assertNotIn("CopyProcess", modify)
         self.assertNotIn("CopyProcess", source("Shared/IClip.h"))
         self.assertNotIn("CopyProcess", source("src/Clip_ImportExport.cpp"))
+        self.assertNotIn("lastCopyProcess", CLIP_SOURCE)
 
     def test_source_resources_are_unique_readonly_and_translated(self):
         header = source("resource.h")
         ids = dict(re.findall(r"#define\s+(\w+)\s+(\d+)", header))
-        names = ("IDC_STATIC_FIRST_COPY_PROCESS", "IDC_FIRST_COPY_PROCESS", "IDC_STATIC_LAST_COPY_PROCESS", "IDC_LAST_COPY_PROCESS")
+        names = ("IDC_STATIC_COPY_PROCESS", "IDC_COPY_PROCESS")
         for name in names:
             self.assertEqual(sum(value == ids[name] for value in ids.values()), 1, name)
         dialog = source("CP_Main.rc").split("IDD_COPY_PROPERTIES DIALOGEX", 1)[1].split("\nEND", 1)[0]
+        self.assertNotIn("Last Copy Source", dialog)
+        self.assertNotIn("First Copy Source", dialog)
         for name in names[1::2]:
             line = next(line for line in dialog.splitlines() if name + "," in line)
             self.assertIn("ES_READONLY", line)
@@ -257,6 +263,13 @@ class CopySourceStaticChecks(unittest.TestCase):
                 self.assertTrue(item.text)
             for key in ("CopySourceUnknown", "CopySourceNotApplicable"):
                 self.assertTrue(root.find(f"Ditto_String_Table/Item[@ID='{key}']").text)
+
+    def test_context_header_is_registered(self):
+        namespace = {"m": "http://schemas.microsoft.com/developer/msbuild/2003"}
+        for name in ("CP_Main.vcxproj", "CP_Main.vcxproj.filters"):
+            project = ET.fromstring(source(name))
+            headers = {node.attrib["Include"] for node in project.findall(".//m:ClInclude", namespace)}
+            self.assertIn("src\\ClipboardSource.h", headers)
 
 
 if __name__ == "__main__":

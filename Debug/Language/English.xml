@@ -194,8 +194,7 @@
 		<Item English_Text = "Quick Paste Text" ID = "2125"></Item>
 		<Item English_Text = "Selected format MD5" ID = "2167"></Item>
 				
-		<Item English_Text = "First Copy Source" ID = "2176">First Copy Source</Item>
-		<Item English_Text = "Last Copy Source" ID = "2178">Last Copy Source</Item>
+		<Item English_Text = "Copy Source" ID = "2176">Copy Source</Item>
 	</Ditto_Clip_Properties>
 	<Ditto_Options_General>
 		<Item English_Text = "Start Ditto on System Startup" ID = "2004"></Item>

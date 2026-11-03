@@ -1424,9 +1424,11 @@ void CMainFrame::OnFirstSavecurrentclipboard()
 		CClipTypes* pTypes = theApp.LoadTypesFromDB();
 		if(pTypes)
 		{
-			const DWORD sourceSequence = ::GetClipboardSequenceNumber();
-			const CString sourceProcess = GetClipboardOwnerProcessName();
-			if(pClip->LoadFromClipboard(pTypes, false, _T(""), _T(""), sourceProcess, sourceSequence) == TRUE)
+			ClipboardSourceContext sourceContext;
+			// A manual save happens after the original copy event; do not guess
+			// an ownerless clip's source from the window currently in front.
+			const CString sourceProcess = GetClipboardSourceProcessName(sourceContext, false);
+			if(pClip->LoadFromClipboard(pTypes, false, _T(""), _T(""), sourceProcess, sourceContext) == TRUE)
 			{
 				Log(_T("Loaded clips from the clipboard, sending message to save to the db"));
 				::PostMessage(m_hWnd, WM_CLIPBOARD_COPIED, (WPARAM)pClip, 0);

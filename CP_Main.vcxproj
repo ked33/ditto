@@ -847,6 +847,7 @@
     <ClInclude Include="src\Clip.h" />
     <ClInclude Include="src\ClipboardSaveRestore.h" />
     <ClInclude Include="src\ClipboardViewer.h" />
+    <ClInclude Include="src\ClipboardSource.h" />
     <ClInclude Include="src\ClipCompare.h" />
     <ClInclude Include="src\ClipEditThread.h" />
     <ClInclude Include="src\ClipFormatQListCtrl.h" />

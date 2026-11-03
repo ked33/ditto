@@ -8,6 +8,7 @@
 
 #include "..\Shared/ArrayEx.h"
 #include <vector>
+#include "ClipboardSource.h"
 
 #define VK_MOUSE_CLICK 0x01
 #define VK_MOUSE_DOUBLE_CLICK 0x02
@@ -196,7 +197,7 @@ void OnInitMenuPopupEx(CMenu *pPopupMenu, UINT nIndex, BOOL bSysMenu, CWnd *pWnd
 CString InternetEncode(CString text);
 
 CString GetProcessName(HWND hWnd, DWORD processId = 0);
-CString GetClipboardOwnerProcessName(DWORD* processId = nullptr);
+CString GetClipboardSourceProcessName(ClipboardSourceContext& source, bool allowForegroundFallback = true);
 
 void DeleteParamFromRTF(CStringA &test, CStringA find, bool searchForTrailingDigits);
 

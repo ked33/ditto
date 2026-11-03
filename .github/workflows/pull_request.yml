@@ -26,5 +26,9 @@ jobs:
       - name: Verify copy-source persistence and wiring
         run: python -B tests/copy_source_regression.py
 
+      - name: Verify clipboard source context
+        shell: pwsh
+        run: .\.github\scripts\Test-ClipboardSource.ps1
+
       - name: Build 64bit
         run: msbuild CP_Main_10.sln /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=${{ env.CI_PLATFORM_TOOLSET }}

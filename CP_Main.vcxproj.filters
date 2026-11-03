@@ -562,6 +562,9 @@
     <ClInclude Include="src\ClipboardViewer.h">
       <Filter>src</Filter>
     </ClInclude>
+    <ClInclude Include="src\ClipboardSource.h">
+      <Filter>src</Filter>
+    </ClInclude>
     <ClInclude Include="src\ClipCompare.h">
       <Filter>src</Filter>
     </ClInclude>

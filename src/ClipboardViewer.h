@@ -1,6 +1,8 @@
 #if !defined(AFX_CLIPBOARDVIEWER_H__67418FB6_6048_48FA_86D4_F412CACC41B1__INCLUDED_)
 #define AFX_CLIPBOARDVIEWER_H__67418FB6_6048_48FA_86D4_F412CACC41B1__INCLUDED_
 
+#include "ClipboardSource.h"
+
 #if _MSC_VER > 1000
 #pragma once
 #endif // _MSC_VER > 1000
@@ -35,7 +37,7 @@ public:
 	CString m_activeWindow;
 	CString m_activeWindowTitle;
 	CString m_copySourceProcess;
-	DWORD m_copySourceSequence;
+	ClipboardSourceContext m_copySourceContext;
 	bool m_hasPendingCopy;
 
 	// m_pHandler->OnClipboardChange is called when the clipboard changes.
