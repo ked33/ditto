@@ -240,7 +240,11 @@ bool CClipEditThread::SaveToClip(CString filePath, int id)
 			return false;
 		}
 
-		clip.LoadFormats(id);
+		if (clip.LoadFormats(id) == FALSE)
+		{
+			Log(StrF(_T("Error loading formats for clip id: %d, not saving"), id));
+			return false;
+		}
 	}			
 
 	CString unicodeText;
@@ -283,30 +287,36 @@ bool CClipEditThread::SaveToClip(CString filePath, int id)
 	
 	if (extenstion == _T("bmp") || extenstion == _T("png"))
 	{		
-		clip.SaveFormats(nullptr, nullptr, nullptr, modifyDescription, &cf_dibBytes, &pngBytes);				
+		savedClip = clip.SaveFormats(nullptr, nullptr, nullptr, modifyDescription, &cf_dibBytes, &pngBytes) != FALSE;
 	}
 	else if (extenstion == _T("txt"))
 	{
 		if (unicode)
 		{
-			clip.SaveFormats(&unicodeText, nullptr, nullptr, modifyDescription);
+			savedClip = clip.SaveFormats(&unicodeText, nullptr, nullptr, modifyDescription) != FALSE;
 		}
 		else
 		{
 			unicodeText = CTextConvert::Utf8ToUnicode(utf8Text);
-			clip.SaveFormats(&unicodeText, nullptr, nullptr, modifyDescription);
+			savedClip = clip.SaveFormats(&unicodeText, nullptr, nullptr, modifyDescription) != FALSE;
 		}
 	}
 	else if (extenstion == _T("rtf"))
 	{
 		if (GetTextFromRTF(utf8Text, unicodeText))
 		{
-			clip.SaveFormats(&unicodeText, nullptr, &utf8Text, modifyDescription);
+			savedClip = clip.SaveFormats(&unicodeText, nullptr, &utf8Text, modifyDescription) != FALSE;
 		}
 		else
 		{
-			clip.SaveFormats(nullptr, nullptr, &utf8Text, modifyDescription);			
+			savedClip = clip.SaveFormats(nullptr, nullptr, &utf8Text, modifyDescription) != FALSE;
 		}
+	}
+
+	if (!savedClip)
+	{
+		Log(StrF(_T("Error saving edited clip id: %d, file: %s"), id, fullFilePath));
+		return false;
 	}
 
 	//refresh the clip in the UI
@@ -319,8 +329,6 @@ bool CClipEditThread::SaveToClip(CString filePath, int id)
 	{
 		theApp.RefreshClipInUI(id, UPDATE_CLIP_DESCRIPTION);
 	}			
-
-	savedClip = true;	
 
 	return savedClip;
 }

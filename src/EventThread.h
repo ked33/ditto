@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <map>
+#include <atomic>
 
 typedef std::map<HANDLE, int> EventMapType;
 
@@ -25,9 +26,9 @@ protected:
 	HANDLE m_thread;
 	HANDLE m_hEvt;
 	EventMapType m_eventMap;
-	bool m_exitThread;
-	bool m_threadRunning;
-	bool m_threadWasStarted;
+	std::atomic<bool> m_exitThread;
+	std::atomic<bool> m_threadRunning;
+	std::atomic<bool> m_threadWasStarted;
 	void *m_param;
 	int m_waitTimeout;
 	CString m_threadName;
@@ -41,7 +42,7 @@ public:
 	void AddEvent(int eventId, HANDLE handle);
 	bool FireEvent(int eventId);
 	bool IsCancelled() { return m_exitThread; }
-	void CancelThread() { m_exitThread = true; }
+	void CancelThread() { m_exitThread = true; FireEvent(-1); }
 	bool IsRunning() { return m_threadRunning; }
 	bool ThreadWasStarted() { return m_threadWasStarted; }
 	void WaitForThreadToExit(int waitTime);

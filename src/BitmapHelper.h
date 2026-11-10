@@ -21,7 +21,7 @@ public:
 
 	static int		GetCBitmapWidth(const CBitmap& cbm);
 	static int		GetCBitmapHeight(const CBitmap& cbm);
-	static BOOL		GetCBitmap(void* pClip2, CDC* pDC, CBitmap* pBitMap, int nMaxHeight);
+	static BOOL		GetCBitmap(void* pClip2, CDC* pDC, CBitmap* pBitMap, int nMaxHeight, int nMaxWidth = 0);
 	static BOOL		GetCBitmap(CClipFormats& clips, CDC* pDC, CBitmap* pBitMap, BOOL horizontal);
 	static HANDLE	hBitmapToDIB(HBITMAP hBitmap, DWORD dwCompression, HPALETTE hPal);
 	static WORD		PaletteSize(LPSTR lpDIB);

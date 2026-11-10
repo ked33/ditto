@@ -5,6 +5,7 @@
 #include "stdafx.h"
 #include "cp_main.h"
 #include "SendSocket.h"
+#include "CancelableSocket.h"
 #include "..\Shared\TextConvert.h"
 
 #ifdef _DEBUG
@@ -38,6 +39,8 @@ BOOL CSendSocket::SendCSendData(CSendInfo &data, MyEnums::eSendType type)
 
 BOOL CSendSocket::SendExactSize(char *pData, long lLength, bool bEncrypt)
 {
+	if (CancelableSocket::IsCancelled(m_cancelled))
+		return FALSE;
 	BOOL bRet = FALSE;
 	if(!m_pEncryptor && bEncrypt)
 	{
@@ -58,7 +61,9 @@ BOOL CSendSocket::SendExactSize(char *pData, long lLength, bool bEncrypt)
 
 		while(lBytesRead < lExpected)
 		{
-			long lSize = send(m_Connection, (char*)pOutput + lBytesRead, lExpected - lBytesRead, 0);
+			long lSize = m_cancelled != nullptr ?
+				CancelableSocket::Send(m_Connection, reinterpret_cast<char*>(pOutput) + lBytesRead, lExpected - lBytesRead, m_cancelled) :
+				send(m_Connection, reinterpret_cast<char*>(pOutput) + lBytesRead, lExpected - lBytesRead, 0);
 		
 			if(lSize == SOCKET_ERROR || lSize == 0)
 			{

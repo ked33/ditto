@@ -14,6 +14,7 @@
 #include "Accels.h"
 #include "GdiImageDrawer.h"
 #include "DPI.h"
+#include "AsyncClipPreview.h"
 
 #define NM_SEARCH_ENTER_PRESSED		WM_USER+0x100
 #define NM_RIGHT					WM_USER+0x101
@@ -46,6 +47,7 @@
 #define NM_COPY_CLIP				WM_USER+0x130
 #define NM_UPDATE_SCROLLBAR			WM_USER+0x131
 #define NM_SEARCH_RESULTS_READY         WM_USER+0x132
+#define NM_RESOLVE_SELECTED_IDS          WM_USER+0x133
 
 
 
@@ -141,6 +143,7 @@ public:
 	bool IsToolTipShowPersistant();
 	void DoToolTipSearch();
 	void HideToolTip();
+	void CancelPendingPreview(bool preservePersistent = false);
 	void RefreshToolTipTheme();
 
 	void SetLogFont(LOGFONT &font);
@@ -203,11 +206,20 @@ protected:
 	CAccels *m_pToolTipActions;
 	CRichEditCtrlEx m_rtfFormater;
 	CDPI *m_windowDpi;
+	CAsyncClipPreview m_preview;
+	UINT_PTR m_previewGeneration = 0;
+	CString m_previewDatabasePath;
+	bool m_previewInGroup = false;
+	bool m_previewSelectionChanged = false;
 
 
 	// Generated message map functions
 protected:
 	//{{AFX_MSG(CQListCtrl)
+	afx_msg LRESULT OnPreviewReady(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnPreviewFormat(WPARAM wParam, LPARAM lParam);
+	afx_msg LRESULT OnPreviewCancel(WPARAM wParam, LPARAM lParam);
+	afx_msg void OnDestroy();
 	afx_msg void OnKeydown(NMHDR* pNMHDR, LRESULT* pResult);
 	afx_msg void OnCustomdrawList(NMHDR* pNMHDR, LRESULT* pResult);
 	void DrawCopiedColorCode(CString& csText, CRect& rcText, CDC* pDC);

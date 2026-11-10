@@ -28,6 +28,8 @@
 #include "SearchIndexSql.h"
 #include "SendMail.h"
 #include <algorithm>
+#include <memory>
+#include <set>
 #include <signal.h>
 #include "CreateQRCodeImage.h"
 #include "QRCodeViewer.h"
@@ -320,6 +322,8 @@ BEGIN_MESSAGE_MAP(CQPasteWnd, CWndEx)
 	ON_WM_CTLCOLOR_REFLECT()
 	ON_COMMAND_RANGE(3000, 4000, OnAddinSelect)
 	ON_MESSAGE(NM_ALL_SELECTED, OnSelectAll)
+	ON_MESSAGE(NM_RESOLVE_SELECTED_IDS, OnResolveSelectedIds)
+    ON_MESSAGE(NM_EXTRA_DATA_READY, OnExtraDataReady)
 	ON_MESSAGE(NM_SHOW_HIDE_SCROLLBARS, OnShowHideScrollBar)
 	ON_MESSAGE(NM_UPDATE_SCROLLBAR, OnUpdateScrollBar)
 	ON_MESSAGE(NM_CANCEL_SEARCH, OnCancelFilter)
@@ -615,6 +619,8 @@ int CQPasteWnd::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	UpdateFont();
 
 	m_thread.Start(this);
+	m_countThread.SetCountOnly();
+	m_countThread.Start(this);
 	m_extraDataThread.Start(this);
 
 	LoadShortcuts();
@@ -963,7 +969,7 @@ void CQPasteWnd::OnActivate(UINT nState, CWnd* pWndOther, BOOL bMinimized)
 			if (theApp.m_bShowingQuickPaste == false)
 			{
 				BOOL fillList = FALSE;
-				if (m_listItems.size() == 0)
+				if (CachedRowCount() == 0)
 				{
 					fillList = TRUE;
 				}
@@ -1010,7 +1016,7 @@ BOOL CQPasteWnd::HideQPasteWindow(bool releaseFocus, BOOL clearSearchData)
 		Log(_T("End of HideQPasteWindow, !theApp.m_bShowingQuickPaste"));
 	}
 
-	CancelPendingSearch();
+	CancelPendingSearch(true);
 
 	theApp.m_bShowingQuickPaste = false;
 
@@ -1053,7 +1059,8 @@ BOOL CQPasteWnd::HideQPasteWindow(bool releaseFocus, BOOL clearSearchData)
 			{
 				ATL::CCritSecLock csLock(m_CritSection.m_sect);
 
-				m_listItems.clear();
+                m_listItems.clear();
+                m_resultIds.clear();
 				m_lstHeader.SetItemCountEx(0);
 			}
 		}
@@ -1075,7 +1082,7 @@ BOOL CQPasteWnd::HideQPasteWindow(bool releaseFocus, BOOL clearSearchData)
 	if ((endTick - startTick) > 150)
 		Log(StrF(_T("Paste Timing HideQPasteWindow: %d"), endTick - startTick));
 
-	Log(StrF(_T("End of HideQPasteWindow, ItemCount: %d"), m_listItems.size()));
+	Log(StrF(_T("End of HideQPasteWindow, ItemCount: %d"), CachedRowCount()));
 
 	return TRUE;
 }
@@ -1096,7 +1103,7 @@ BOOL CQPasteWnd::ShowQPasteWindow(BOOL bFillList)
 {
 	theApp.m_bShowingQuickPaste = true;
 
-	Log(StrF(_T("Start - ShowQPasteWindow - Fill List: %d, array count: %d"), bFillList, m_listItems.size()));
+	Log(StrF(_T("Start - ShowQPasteWindow - Fill List: %d, array count: %d"), bFillList, CachedRowCount()));
 
 	//Ensure we have the latest theme file, this checks the last write time so it doesn't read the file each time
 	CGetSetOptions::m_Theme.Load(CGetSetOptions::GetTheme(), false, true);
@@ -1125,8 +1132,11 @@ BOOL CQPasteWnd::ShowQPasteWindow(BOOL bFillList)
 		m_search.GetWindowText(search);
 		if (search != m_lastSearchText)
 			FillList(search);
-		else
-			m_thread.ResumeSearch();
+        else
+        {
+            m_thread.ResumeSearch();
+            m_countThread.ResumeSearch();
+        }
 		MoveControls();
 		m_lstHeader.Invalidate();
 	}
@@ -1144,7 +1154,7 @@ BOOL CQPasteWnd::ShowQPasteWindow(BOOL bFillList)
 
 	//SetKeyModiferState(true);
 
-	Log(StrF(_T("END - ShowQPasteWindow - Fill List: %d, array count: %d"), bFillList, m_listItems.size()));
+	Log(StrF(_T("END - ShowQPasteWindow - Fill List: %d, array count: %d"), bFillList, CachedRowCount()));
 
 	return TRUE;
 }
@@ -1370,84 +1380,63 @@ LRESULT CQPasteWnd::OnListEnd(WPARAM wParam, LPARAM lParam)
 
 LRESULT CQPasteWnd::OnReloadClipInUI(WPARAM wParam, LPARAM lParam)
 {
-	BOOL foundClip = FALSE;
-	int clipId = (int)wParam;
-	int updateFlags = (int)lParam;
-
-	if (CGetSetOptions::m_maintainSearchView &&
-		m_strSearch != _T("") &&
-		updateFlags & UPDATE_AFTER_PASTE_SELECT_CLIP)
-	{
-		Log(_T("Currently searching for something and setting to maintain search view is enabled, not refreshing clip order"));
-		return FALSE;
-	}
-
-	DWORD startTick = GetTickCount();
-
-	theApp.m_FocusID = -1;
-
-	CppSQLite3Query q = theApp.m_db.execQueryEx(_T("SELECT clipOrder, clipGroupOrder, lastPasteDate, mText FROM Main WHERE lID = %d"), clipId);
-	if (q.eof() == false)
-	{
-		double order = q.getFloatField(_T("clipOrder"));
-		double orderGroup = q.getFloatField(_T("clipGroupOrder"));
-		auto lastPasted = q.getInt64Field(_T("lastPasteDate"));
-		CString description = q.getStringField(_T("mText"));
-
-		std::vector<CMainTable>::iterator iter = m_listItems.begin();
-		while (iter != m_listItems.end())
-		{
-			if (iter->m_lID == clipId)
-			{
-				if (updateFlags & UPDATE_AFTER_PASTE_SELECT_CLIP)
-				{
-					iter->m_datePasted = lastPasted;
-
-					if (iter->m_clipOrder != order || iter->m_clipGroupOrder != orderGroup)
-					{
-						iter->m_clipOrder = order;
-						iter->m_clipGroupOrder = orderGroup;
-
-						if (theApp.m_GroupID > 0)
-						{
-							std::sort(m_listItems.begin(), m_listItems.end(), CMainTable::GroupSortDesc);
-						}
-						else
-						{
-							std::sort(m_listItems.begin(), m_listItems.end(), CMainTable::SortDesc);
-						}
-					}
-
-					foundClip = TRUE;
-
-					m_lstHeader.RefreshVisibleRows();
-					m_lstHeader.RedrawWindow();
-					SelectFocusID();
-				}
-				else if (updateFlags & UPDATE_CLIP_DESCRIPTION)
-				{
-					iter->m_Desc = description;
-
-					foundClip = TRUE;
-
-					RemoveFromImageRtfCache(-1, clipId);
-
-					m_lstHeader.RefreshVisibleRows();
-					m_lstHeader.RedrawWindow();
-				}
-
-				break;
-			}
-
-			iter++;
-		}
-	}
-
-	DWORD endTick = GetTickCount();
-	if ((endTick - startTick) > 150)
-		Log(StrF(_T("Paste Timing OnReloadClipInUI: %d, ClipId: %d"), endTick - startTick, clipId));
-
-	return foundClip;
+    const int clipId = static_cast<int>(wParam);
+    const int updateFlags = static_cast<int>(lParam);
+    if (CGetSetOptions::m_maintainSearchView && !m_strSearch.IsEmpty() &&
+        (updateFlags & UPDATE_AFTER_PASTE_SELECT_CLIP))
+        return FALSE;
+    bool foundClip = false;
+    bool orderChanged = false;
+    try
+    {
+        CppSQLite3Query q = theApp.m_db.execQueryEx(
+            _T("SELECT clipOrder, clipGroupOrder, lastPasteDate, mText FROM Main WHERE lID=%d"), clipId);
+        if (!q.eof())
+        {
+            ATL::CCritSecLock lock(m_CritSection.m_sect);
+            for (auto& row : m_listItems)
+            {
+                auto& item = row.second;
+                if (item.m_lID != clipId)
+                    continue;
+                foundClip = true;
+                if (updateFlags & UPDATE_AFTER_PASTE_SELECT_CLIP)
+                {
+                    const double order = q.getFloatField(_T("clipOrder"));
+                    const double groupOrder = q.getFloatField(_T("clipGroupOrder"));
+                    orderChanged = item.m_clipOrder != order || item.m_clipGroupOrder != groupOrder;
+                    item.m_clipOrder = order;
+                    item.m_clipGroupOrder = groupOrder;
+                    item.m_datePasted = q.getInt64Field(_T("lastPasteDate"));
+                }
+                if (updateFlags & UPDATE_CLIP_DESCRIPTION)
+                    item.m_Desc = q.getStringField(_T("mText"));
+                break;
+            }
+        }
+    }
+    CATCH_SQLITE_EXCEPTION
+    if (orderChanged || (!foundClip && (updateFlags & UPDATE_AFTER_PASTE_SELECT_CLIP)))
+    {
+        // A paste is the common path: refresh its first page asynchronously.
+        // Explicit reorder commands can still resolve their complete selection.
+        theApp.m_FocusID = clipId;
+        FillList(m_strSearch);
+        return TRUE;
+    }
+    if (updateFlags & UPDATE_CLIP_DESCRIPTION)
+        RemoveFromImageRtfCache(-1, clipId);
+    if (foundClip)
+    {
+        m_lstHeader.RefreshVisibleRows();
+        m_lstHeader.RedrawWindow();
+        if (updateFlags & UPDATE_AFTER_PASTE_SELECT_CLIP)
+        {
+            theApp.m_FocusID = clipId;
+            SelectFocusID();
+        }
+    }
+    return foundClip;
 }
 
 LRESULT CQPasteWnd::OnRefreshView(WPARAM wParam, LPARAM lParam)
@@ -1496,7 +1485,7 @@ LRESULT CQPasteWnd::OnRefreshView(WPARAM wParam, LPARAM lParam)
 		action = _T("Cleared Items");
 	}
 
-	Log(StrF(_T("OnRefreshView - End - Count: %d, Action: %s"), m_listItems.size(), action));
+	Log(StrF(_T("OnRefreshView - End - Count: %d, Action: %s"), CachedRowCount(), action));
 
 	return TRUE;
 }
@@ -1596,7 +1585,7 @@ BOOL CQPasteWnd::FillList(CString csSQLSearch)
 	CString strStarredFilter = _T("Main.bIsGroup = 0 AND Main.lDontAutoDelete > 0");
 	CString csSort;
 
-	// History Groupiter->m_stickyClipGroupOrder = clip.m_stickyClipGroupOrder;
+	// History groups use their saved group ordering.
 	if (m_bShowStarredClips)
 	{
 		csSort = "Main.stickyClipOrder DESC, "
@@ -1982,7 +1971,23 @@ BOOL CQPasteWnd::FillList(CString csSQLSearch)
 	m_lstHeader.SetItemCount(0);
 	m_lstHeader.RefreshVisibleRows();
 
-	m_thread.SetSearchSql(sql, countSql, theApp.m_db.databasePath());
+    const CString databasePath = theApp.m_db.databasePath();
+    {
+        ATL::CCritSecLock lock(m_CritSection.m_sect);
+        if (m_listDatabasePath.CompareNoCase(databasePath) != 0)
+        {
+            m_cf_dibCache.clear();
+            m_cf_NO_dibCache.clear();
+            m_cf_rtfCache.clear();
+            m_cf_NO_rtfCache.clear();
+        }
+        m_listSql = sql;
+        m_listDatabasePath = databasePath;
+    }
+    m_listCountKnown = false;
+    m_resultIds.clear();
+    m_thread.SetSearchSql(sql, countSql, m_listDatabasePath);
+    m_countThread.SetSearchSql(sql, countSql, m_listDatabasePath);
 	{
 		ATL::CCritSecLock csLock(m_CritSection.m_sect);
 		m_loadItems.push_back(CPoint(-1, m_lstHeader.GetCountPerPage() + 2));
@@ -2448,11 +2453,13 @@ void CQPasteWnd::SetLinesPerRow(int lines, bool force, bool resetListCount)
 		m_lstHeader.SetItemCountEx(0);
 	}
 
+    m_extraDataThread.CancelExtraData();
 	CGetSetOptions::SetLinesPerRow(lines);
 	m_lstHeader.SetNumberOfLinesPerRow(lines, force);
 
 	ATL::CCritSecLock csLock(m_CritSection.m_sect);
 
+    m_ExtraDataLoadItems.clear();
 	m_cf_dibCache.clear();
 	m_cf_NO_dibCache.clear();
 	m_cf_rtfCache.clear();
@@ -2665,7 +2672,7 @@ void CQPasteWnd::OnMenuQuickpropertiesSettoneverautodelete()
 		count = Indexs.GetSize();
 		for (int row = 0; row < count; row++)
 		{
-			if (Indexs[row] < (int)m_listItems.size())
+			if (m_listItems.contains(Indexs[row]))
 			{
 				m_listItems[Indexs[row]].m_bDontAutoDelete = true;
 			}
@@ -2699,7 +2706,7 @@ void CQPasteWnd::OnMenuQuickpropertiesAutodelete()
 		count = Indexs.GetSize();
 		for (int row = 0; row < count; row++)
 		{
-			if (Indexs[row] < (int)m_listItems.size())
+			if (m_listItems.contains(Indexs[row]))
 			{
 				m_listItems[Indexs[row]].m_bDontAutoDelete = false;
 			}
@@ -2737,7 +2744,7 @@ void CQPasteWnd::OnMenuQuickpropertiesRemovehotkey()
 		count = Indexs.GetSize();
 		for (int row = 0; row < count; row++)
 		{
-			if (Indexs[row] < (int)m_listItems.size())
+			if (m_listItems.contains(Indexs[row]))
 			{
 				m_listItems[Indexs[row]].m_bHasShortCut = false;
 			}
@@ -2772,7 +2779,7 @@ void CQPasteWnd::OnQuickpropertiesRemovequickpaste()
 		count = Indexs.GetSize();
 		for (int row = 0; row < count; row++)
 		{
-			if (Indexs[row] < (int)m_listItems.size())
+			if (m_listItems.contains(Indexs[row]))
 			{
 				m_listItems[Indexs[row]].m_QuickPaste.Empty();
 			}
@@ -3190,53 +3197,24 @@ void CQPasteWnd::DeleteSelectedRows()
 
 bool CQPasteWnd::DeleteClips(CClipIDs& IDs, ARRAY& Indexs)
 {
-	POSITION pos = m_lstHeader.GetFirstSelectedItemPosition();
-	int nFirstSel = m_lstHeader.GetNextSelectedItem(pos);
-
-	IDs.DeleteIDs(true, theApp.m_db);
-
-	Indexs.SortDescending();
-	INT_PTR count = Indexs.GetSize();
-
-	int erasedCount = 0;
-
-	{
-		ATL::CCritSecLock csLock(m_CritSection.m_sect);
-
-		for (int i = 0; i < count; i++)
-		{
-			if (Indexs[i] < (int)m_listItems.size())
-			{
-				RemoveFromImageRtfCache(Indexs[i]);
-				g_HotKeys.Remove(m_lstHeader.GetItemData(Indexs[i]), CHotKey::PASTE_OPEN_CLIP);
-
-				m_listItems.erase(m_listItems.begin() + Indexs[i]);
-				erasedCount++;
-			}
-		}
-	}
-
-	CClip::m_LastAddedCRC = 0;
-
-	m_extraDataThread.FireLoadAccelerators();
-
-	m_lstHeader.SetItemCountEx(m_lstHeader.GetItemCount() - erasedCount);
-
-	// if there are no items after the one we deleted, then select the last one.
-	if (nFirstSel >= m_lstHeader.GetItemCount())
-	{
-		nFirstSel = m_lstHeader.GetItemCount() - 1;
-	}
-
-	m_lstHeader.SetListPos(nFirstSel);
-	UpdateStatus();
-
-	if (m_lstHeader.IsToolTipWindowVisible())
-	{
-		m_lstHeader.ShowFullDescription(false, true);
-	}
-
-	return true;
+    if (IDs.GetCount() == 0)
+        return false;
+    POSITION pos = m_lstHeader.GetFirstSelectedItemPosition();
+    int firstSelected = pos ? m_lstHeader.GetNextSelectedItem(pos) : 0;
+    IDs.DeleteIDs(true, theApp.m_db);
+    for (INT_PTR i = 0; i < IDs.GetCount(); ++i)
+    {
+        RemoveFromImageRtfCache(-1, IDs[i]);
+        g_HotKeys.Remove(IDs[i], CHotKey::PASTE_OPEN_CLIP);
+    }
+    CClip::m_LastAddedCRC = 0;
+    RefreshCachedOrder();
+    m_extraDataThread.FireLoadAccelerators();
+    m_lstHeader.SetListPos(min(firstSelected, m_lstHeader.GetItemCount() - 1));
+    UpdateStatus();
+    if (m_lstHeader.IsToolTipWindowVisible())
+        m_lstHeader.ShowFullDescription(false, true);
+    return true;
 }
 
 void CQPasteWnd::RemoveFromImageRtfCache(int row, int id)
@@ -4534,12 +4512,12 @@ bool CQPasteWnd::ShowProperties(int id, int row)
 			{
 				bool selectedItem = false;
 				int index = 0;
-				std::vector<CMainTable>::iterator iter = m_listItems.begin();
+				auto iter = m_listItems.begin();
 				while (iter != m_listItems.end())
 				{
-					if (iter->m_lID == id)
+					if (iter->second.m_lID == id)
 					{
-						row = index;
+						row = iter->first;
 						break;
 					}
 					iter++;
@@ -4548,7 +4526,7 @@ bool CQPasteWnd::ShowProperties(int id, int row)
 			}
 
 			if (row >= 0 &&
-				row < (int)m_listItems.size())
+				m_listItems.contains(row))
 			{
 				CppSQLite3Query q = theApp.m_db.execQueryEx(_T("SELECT * FROM Main WHERE lID = %d"), id);
 				if (!q.eof())
@@ -5048,14 +5026,7 @@ bool CQPasteWnd::DoMoveClipDown()
 
 		if (sort)
 		{
-			if (theApp.m_GroupID > 0)
-			{
-				std::sort(m_listItems.begin(), m_listItems.end(), CMainTable::GroupSortDesc);
-			}
-			else
-			{
-				std::sort(m_listItems.begin(), m_listItems.end(), CMainTable::SortDesc);
-			}
+			RefreshCachedOrder();
 
 			SelectIds(IDs);
 
@@ -5092,14 +5063,7 @@ bool CQPasteWnd::DoMoveClipUp()
 
 		if (sort)
 		{
-			if (theApp.m_GroupID > 0)
-			{
-				std::sort(m_listItems.begin(), m_listItems.end(), CMainTable::GroupSortDesc);
-			}
-			else
-			{
-				std::sort(m_listItems.begin(), m_listItems.end(), CMainTable::SortDesc);
-			}
+			RefreshCachedOrder();
 
 			SelectIds(IDs);
 
@@ -5135,39 +5099,13 @@ bool CQPasteWnd::DoMoveClipLast()
 				}
 				clip.ModifyMainTable();
 
-				//have we loaded all clips, if so then sort and select
-				if (m_listItems.size() == m_lstHeader.GetItemCount())
-				{
-					sort = SyncClipDataToArrayData(clip);
-				}
-				else
-				{
-					//haven't loaded all clips so this will be out of what we have loaded
-					//remove this from the list, will be shown as they scroll down the list
-					std::vector<CMainTable>::iterator iter = m_listItems.begin();
-					while (iter != m_listItems.end())
-					{
-						if (iter->m_lID == clip.ID())
-						{
-							m_listItems.erase(iter);
-							break;
-						}
-						iter++;
-					}
-				}
+                sort = SyncClipDataToArrayData(clip);
 			}
 		}
 
 		if (sort)
 		{
-			if (theApp.m_GroupID > 0)
-			{
-				std::sort(m_listItems.begin(), m_listItems.end(), CMainTable::GroupSortDesc);
-			}
-			else
-			{
-				std::sort(m_listItems.begin(), m_listItems.end(), CMainTable::SortDesc);
-			}
+			RefreshCachedOrder();
 
 			SelectIds(IDs);
 		}
@@ -5209,14 +5147,7 @@ bool CQPasteWnd::DoMoveClipTOP()
 
 		if (sort)
 		{
-			if (theApp.m_GroupID > 0)
-			{
-				std::sort(m_listItems.begin(), m_listItems.end(), CMainTable::GroupSortDesc);
-			}
-			else
-			{
-				std::sort(m_listItems.begin(), m_listItems.end(), CMainTable::SortDesc);
-			}
+			RefreshCachedOrder();
 
 			SelectIds(IDs);
 
@@ -5240,13 +5171,13 @@ bool CQPasteWnd::DoFilterOnSelectedClip()
 		int id = IDs[0];
 
 		ATL::CCritSecLock csLock(m_CritSection.m_sect);
-		std::vector<CMainTable>::iterator iter = m_listItems.begin();
+		auto iter = m_listItems.begin();
 		while (iter != m_listItems.end())
 		{
-			if (iter->m_lID == id)
+			if (iter->second.m_lID == id)
 			{
 				m_bHandleSearchTextChange = false;
-				m_search.SetWindowText(iter->m_Desc);
+				m_search.SetWindowText(iter->second.m_Desc);
 				m_bHandleSearchTextChange = true;
 				OnSearch(0, 0);
 				ret = true;
@@ -5505,14 +5436,7 @@ bool CQPasteWnd::OnMakeTopSticky(bool forceSort)
 
 		if (sort)
 		{
-			if (theApp.m_GroupID > 0)
-			{
-				std::sort(m_listItems.begin(), m_listItems.end(), CMainTable::GroupSortDesc);
-			}
-			else
-			{
-				std::sort(m_listItems.begin(), m_listItems.end(), CMainTable::SortDesc);
-			}
+			RefreshCachedOrder();
 
 			SelectIds(IDs);
 
@@ -5547,14 +5471,7 @@ bool CQPasteWnd::OnMakeLastSticky()
 
 		if (sort)
 		{
-			if (theApp.m_GroupID > 0)
-			{
-				std::sort(m_listItems.begin(), m_listItems.end(), CMainTable::GroupSortDesc);
-			}
-			else
-			{
-				std::sort(m_listItems.begin(), m_listItems.end(), CMainTable::SortDesc);
-			}
+			RefreshCachedOrder();
 
 			SelectIds(IDs);
 
@@ -5583,14 +5500,7 @@ bool CQPasteWnd::OnRemoveStickySetting()
 
 		if (sort)
 		{
-			if (theApp.m_GroupID > 0)
-			{
-				std::sort(m_listItems.begin(), m_listItems.end(), CMainTable::GroupSortDesc);
-			}
-			else
-			{
-				std::sort(m_listItems.begin(), m_listItems.end(), CMainTable::SortDesc);
-			}
+			RefreshCachedOrder();
 
 			//SelectFocusID();
 
@@ -5610,19 +5520,21 @@ void CQPasteWnd::RemoveStickyInternal(int id, bool& sort)
 		if (clip.RemoveStickySetting(theApp.m_GroupID))
 		{
 			clip.ModifyMainTable();
+            sort = true;
 
-			std::vector<CMainTable>::iterator iter = m_listItems.begin();
+            ATL::CCritSecLock lock(m_CritSection.m_sect);
+			auto iter = m_listItems.begin();
 			while (iter != m_listItems.end())
 			{
-				if (iter->m_lID == id)
+				if (iter->second.m_lID == id)
 				{
 					if (theApp.m_GroupID > 0)
 					{
-						iter->m_stickyClipGroupOrder = clip.m_stickyClipGroupOrder;
+						iter->second.m_stickyClipGroupOrder = clip.m_stickyClipGroupOrder;
 					}
 					else
 					{
-						iter->m_stickyClipOrder = clip.m_stickyClipOrder;
+						iter->second.m_stickyClipOrder = clip.m_stickyClipOrder;
 					}
 					sort = true;
 					break;
@@ -5704,8 +5616,9 @@ bool CQPasteWnd::DoActionSaveCF_HDROP_FileData()
 					CString localErrorMessage;
 					if (clip.AddFileDataToData(localErrorMessage))
 					{
+                        ATL::CCritSecLock lock(m_CritSection.m_sect);
 						if (row >= 0 &&
-							row < (int)m_listItems.size())
+							m_listItems.contains(row))
 						{
 							CppSQLite3Query q = theApp.m_db.execQueryEx(_T("SELECT * FROM Main WHERE lID = %d"), id);
 							if (!q.eof())
@@ -6013,6 +5926,7 @@ void CQPasteWnd::GetDispInfo(NMHDR* pNMHDR, LRESULT* pResult)
 {
 	LV_DISPINFO* pDispInfo = (LV_DISPINFO*)pNMHDR;
 	LV_ITEM* pItem = &(pDispInfo)->item;
+    UpdateVisibleRange();
 
 	if (pItem->mask & LVIF_TEXT)
 	{
@@ -6024,7 +5938,7 @@ void CQPasteWnd::GetDispInfo(NMHDR* pNMHDR, LRESULT* pResult)
 				ATL::CCritSecLock csLock(m_CritSection.m_sect);
 
 				int c = m_lstHeader.GetItemCount();
-				if ((int)m_listItems.size() > pItem->iItem &&
+				if (m_listItems.contains(pItem->iItem) &&
 					m_listItems[pItem->iItem].m_lID > 0)
 				{
 					CString cs;
@@ -6089,7 +6003,7 @@ void CQPasteWnd::GetDispInfo(NMHDR* pNMHDR, LRESULT* pResult)
 
 					for (std::list<CPoint>::iterator it = m_loadItems.begin(); it != m_loadItems.end(); it++)
 					{
-						if (pItem->iItem >= it->x && pItem->iItem <= it->y)
+						if (pItem->iItem >= max(it->x, 0) && pItem->iItem < it->y)
 						{
 							addToLoadItems = false;
 							break;
@@ -6098,7 +6012,7 @@ void CQPasteWnd::GetDispInfo(NMHDR* pNMHDR, LRESULT* pResult)
 
 					if (addToLoadItems)
 					{
-						CPoint loadItem(pItem->iItem, (m_lstHeader.GetTopIndex() + (m_lstHeader.GetCountPerPage() * 2)));
+						CPoint loadItem(pItem->iItem, pItem->iItem + max(m_lstHeader.GetCountPerPage() * 2, 1));
 
 						//Log(StrF(_T("DrawItem index %d, add: %d"), loadItem.x, loadItem.y));
 						m_loadItems.push_back(loadItem);
@@ -6121,10 +6035,14 @@ void CQPasteWnd::GetDispInfo(NMHDR* pNMHDR, LRESULT* pResult)
 		{
 			ATL::CCritSecLock csLock(m_CritSection.m_sect);
 
-			if ((int)m_listItems.size() > pItem->iItem)
+			if (m_listItems.contains(pItem->iItem))
 			{
-				pItem->lParam = m_listItems[pItem->iItem].m_lID;
-			}
+                pItem->lParam = m_listItems[pItem->iItem].m_lID;
+            }
+            else if (pItem->iItem >= 0 && static_cast<size_t>(pItem->iItem) < m_resultIds.size())
+            {
+                pItem->lParam = m_resultIds[pItem->iItem];
+            }
 		}
 
 		break;
@@ -6135,7 +6053,7 @@ void CQPasteWnd::GetDispInfo(NMHDR* pNMHDR, LRESULT* pResult)
 	{
 		ATL::CCritSecLock csLock(m_CritSection.m_sect);
 
-		if ((int)m_listItems.size() > pItem->iItem)
+		if (m_listItems.contains(pItem->iItem))
 		{
 			CF_NoDibTypeMap::iterator iterNoDib = m_cf_NO_dibCache.find(m_listItems[pItem->iItem].m_lID);
 			if (iterNoDib == m_cf_NO_dibCache.end())
@@ -6160,7 +6078,8 @@ void CQPasteWnd::GetDispInfo(NMHDR* pNMHDR, LRESULT* pResult)
 						format.m_parentId = m_listItems[pItem->iItem].m_lID;
 						format.m_clipRow = pItem->iItem;
 						format.m_autoDeleteData = true;
-						format.m_counter = m_extraDataCounter++;
+                        format.m_counter = ++m_extraDataCounter;
+                        format.m_generation = m_extraDataThread.ExtraDataGeneration();
 						m_ExtraDataLoadItems.push_back(format);
 
 						m_extraDataThread.FireLoadExtraData(m_lstHeader.GetRowHeight());
@@ -6168,6 +6087,7 @@ void CQPasteWnd::GetDispInfo(NMHDR* pNMHDR, LRESULT* pResult)
 				}
 				else
 				{
+                    iterDib->second.m_counter = ++m_extraDataCounter;
 					if (iterDib->second.m_hgData != NULL)
 					{
 						pItem->lParam = (LPARAM) & (iterDib->second);
@@ -6181,7 +6101,7 @@ void CQPasteWnd::GetDispInfo(NMHDR* pNMHDR, LRESULT* pResult)
 	{
 		ATL::CCritSecLock csLock(m_CritSection.m_sect);
 
-		if ((int)m_listItems.size() > pItem->iItem)
+		if (m_listItems.contains(pItem->iItem))
 		{
 			CF_NoDibTypeMap::iterator iterNoRtf = m_cf_NO_rtfCache.find(m_listItems[pItem->iItem].m_lID);
 			if (iterNoRtf == m_cf_NO_rtfCache.end())
@@ -6206,7 +6126,8 @@ void CQPasteWnd::GetDispInfo(NMHDR* pNMHDR, LRESULT* pResult)
 						format.m_parentId = m_listItems[pItem->iItem].m_lID;
 						format.m_clipRow = pItem->iItem;
 						format.m_autoDeleteData = true;
-						format.m_counter = m_extraDataCounter++;
+                        format.m_counter = ++m_extraDataCounter;
+                        format.m_generation = m_extraDataThread.ExtraDataGeneration();
 						m_ExtraDataLoadItems.push_back(format);
 
 						m_extraDataThread.FireLoadExtraData(m_lstHeader.GetRowHeight());
@@ -6214,6 +6135,7 @@ void CQPasteWnd::GetDispInfo(NMHDR* pNMHDR, LRESULT* pResult)
 				}
 				else
 				{
+                    iterRTF->second.m_counter = ++m_extraDataCounter;
 					if (iterRTF->second.m_hgData != NULL)
 					{
 						pItem->lParam = (LPARAM) & (iterRTF->second);
@@ -6584,11 +6506,184 @@ void CQPasteWnd::OnMenuShowStarredClips()
 	FillList(csText);
 }
 
-void CQPasteWnd::CancelPendingSearch()
+void CQPasteWnd::UpdateVisibleRange()
 {
-	m_thread.CancelSearch();
-	ATL::CCritSecLock lock(m_CritSection.m_sect);
-	m_loadItems.clear();
+    CRect client;
+    m_lstHeader.GetClientRect(client);
+    m_extraDataThread.SetMaxImageWidth(client.Width());
+    const int first = max(m_lstHeader.GetTopIndex(), 0);
+    const int last = first + max(m_lstHeader.GetCountPerPage(), 1) + 1;
+    ATL::CCritSecLock lock(m_CritSection.m_sect);
+    m_visibleFirstRow = first;
+    m_visibleLastRow = last;
+}
+
+bool CQPasteWnd::LoadResultIds(std::vector<int>& ids)
+{
+    ids.clear();
+    if (m_listSql.IsEmpty() || m_listDatabasePath.IsEmpty())
+        return false;
+    struct QueryContext
+    {
+        CQPasteWndThread* worker;
+        UINT_PTR generation;
+    } context{ &m_thread, m_thread.Generation() };
+    try
+    {
+        // This query is only needed for an explicit bulk action or a reorder.
+        // Keep row metadata bounded and never read clipboard BLOBs here.
+        CWaitCursor wait;
+        CppSQLite3DB db;
+        db.open(m_listDatabasePath, true);
+        db.setBusyTimeout(CGetSetOptions::GetDbTimeout());
+        db.setProgressHandler(1000, [](void* value) -> int
+        {
+            const auto query = static_cast<QueryContext*>(value);
+            return query->worker->IsCancelled() ||
+                !query->worker->IsCurrentSearch(query->generation);
+        }, &context);
+        CString sql = _T("SELECT lID FROM (") + m_listSql + _T(")");
+        CppSQLite3Query q = db.execQuery(sql);
+        while (!q.eof())
+        {
+            const int id = q.getIntField(0);
+            if (id <= 0)
+                return false;
+            ids.push_back(id);
+            q.nextRow();
+        }
+        return m_thread.IsCurrentSearch(context.generation);
+    }
+    catch (CppSQLite3Exception& e)
+    {
+        Log(StrF(_T("Resolving selected clip IDs failed, SQLite code: %d"), e.errorCode()));
+        ids.clear();
+        return false;
+    }
+}
+
+bool CQPasteWnd::ResolveSelectionIds(ARRAY& ids)
+{
+    ids.RemoveAll();
+    ARRAY indexes;
+    m_lstHeader.GetSelectionIndexes(indexes);
+    bool needSnapshot = false;
+    {
+        ATL::CCritSecLock lock(m_CritSection.m_sect);
+        for (INT_PTR i = 0; i < indexes.GetCount(); ++i)
+        {
+            if (!m_listItems.contains(indexes[i]))
+            {
+                needSnapshot = true;
+                break;
+            }
+        }
+    }
+    if (needSnapshot)
+    {
+        std::vector<int> snapshot;
+        // Always refresh ID-only rows: a background copy may have changed the
+        // SQL order before the UI has received its refresh notification.
+        if (!LoadResultIds(snapshot))
+            return false;
+        bool consistent;
+        {
+            ATL::CCritSecLock lock(m_CritSection.m_sect);
+            consistent = m_listItems.matchesIds(snapshot,
+                [](const CMainTable& row) { return row.m_lID; });
+            if (consistent && !m_resultIds.empty())
+                consistent = m_resultIds == snapshot;
+            if (consistent)
+                m_resultIds.swap(snapshot);
+        }
+        if (!consistent)
+        {
+            Log(_T("Clip order changed while resolving selection; refreshing the view"));
+            FillList(m_strSearch);
+            return false;
+        }
+    }
+    bool valid = true;
+    {
+        ATL::CCritSecLock lock(m_CritSection.m_sect);
+        std::set<int> seen;
+        for (INT_PTR i = 0; i < indexes.GetCount(); ++i)
+        {
+            const int row = indexes[i];
+            int id = -1;
+            if (m_listItems.contains(row))
+                id = m_listItems[row].m_lID;
+            else if (row >= 0 && static_cast<size_t>(row) < m_resultIds.size())
+                id = m_resultIds[row];
+            if (id <= 0 || !seen.insert(id).second)
+            {
+                valid = false;
+                break;
+            }
+            ids.Add(id);
+        }
+    }
+    if (!valid)
+    {
+        ids.RemoveAll();
+        FillList(m_strSearch);
+    }
+    return valid;
+}
+
+void CQPasteWnd::RefreshCachedOrder()
+{
+    ARRAY selectedIds;
+    // Preserve the old row-to-ID mapping before querying the new order.
+    POSITION pos = m_lstHeader.GetFirstSelectedItemPosition();
+    while (pos)
+    {
+        const int id = static_cast<int>(m_lstHeader.GetItemData(m_lstHeader.GetNextSelectedItem(pos)));
+        if (id > 0)
+            selectedIds.Add(id);
+    }
+    CancelPendingSearch();
+    std::vector<int> ids;
+    if (!LoadResultIds(ids))
+    {
+        FillList(m_strSearch);
+        return;
+    }
+    {
+        ATL::CCritSecLock lock(m_CritSection.m_sect);
+        std::map<int, CMainTable> byId;
+        for (const auto& row : m_listItems)
+            byId[row.second.m_lID] = row.second;
+        m_listItems.clear();
+        for (size_t row = 0; row < ids.size(); ++row)
+        {
+            const auto found = byId.find(ids[row]);
+            if (found != byId.end())
+                m_listItems.put(static_cast<int>(row), found->second);
+        }
+        m_resultIds.swap(ids);
+        m_listCountKnown = true;
+    }
+    m_thread.SetSearchSql(m_listSql, _T(""), m_listDatabasePath);
+    m_countThread.SetSearchSql(m_listSql, _T(""), m_listDatabasePath);
+    m_thread.AcknowledgeListCount(m_thread.Generation());
+    m_countThread.AcknowledgeListCount(m_countThread.Generation());
+    m_lstHeader.SetItemCountEx(static_cast<int>(m_resultIds.size()), LVSICF_NOSCROLL);
+    SelectIds(selectedIds);
+    UpdateVisibleRange();
+    m_lstHeader.RefreshVisibleRows();
+}
+
+void CQPasteWnd::CancelPendingSearch(bool preservePersistentPreview)
+{
+    m_lstHeader.CancelPendingPreview(preservePersistentPreview);
+    m_thread.CancelSearch();
+    m_countThread.CancelSearch();
+    m_extraDataThread.CancelExtraData();
+    ATL::CCritSecLock lock(m_CritSection.m_sect);
+    m_loadItems.clear();
+    m_ExtraDataLoadItems.clear();
+    m_resultIds.clear();
 }
 
 void CQPasteWnd::OnSearchEditChange()
@@ -6754,14 +6849,13 @@ LRESULT CQPasteWnd::OnSetListCount(WPARAM wParam, LPARAM lParam)
 	if (!m_thread.IsCurrentSearch(static_cast<UINT_PTR>(lParam)))
 		return 0;
 	m_thread.AcknowledgeListCount(static_cast<UINT_PTR>(lParam));
+    m_countThread.AcknowledgeListCount(static_cast<UINT_PTR>(lParam));
+    m_listCountKnown = true;
 
 	m_noSearchResults = false;
 
-	int x = m_lstHeader.GetScrollPos(SB_HORZ);
-	int y = m_lstHeader.GetScrollPos(SB_VERT);
-	m_lstHeader.Scroll(CSize(-x, -y));
-
-	m_lstHeader.SetItemCountEx((int)wParam);
+    const bool firstCount = m_lstHeader.GetItemCount() == 0;
+    m_lstHeader.SetItemCountEx((int)wParam, LVSICF_NOSCROLL);
 
 	if ((int)wParam == 0 &&
 		(m_strSearch != _T("") || m_bShowStarredClips))
@@ -6779,12 +6873,12 @@ LRESULT CQPasteWnd::OnSetListCount(WPARAM wParam, LPARAM lParam)
 		}
 	}
 
-	SelectFocusID();
-	UpdateStatus(false);
-
-	MoveControls();
-
-	return TRUE;
+    if (firstCount || m_lstHeader.GetSelectedCount() == 0)
+        SelectFocusID();
+    UpdateVisibleRange();
+    UpdateStatus(false);
+    MoveControls();
+    return TRUE;
 }
 
 LRESULT CQPasteWnd::OnItemDeleted(WPARAM wParam, LPARAM lParam)
@@ -6797,8 +6891,18 @@ LRESULT CQPasteWnd::OnSearchResultsReady(WPARAM wParam, LPARAM lParam)
 {
 	if (!m_thread.IsCurrentSearch(static_cast<UINT_PTR>(wParam)))
 		return 0;
-	if (lParam != 0)
-		OnRefeshRow(static_cast<WPARAM>(-2), 0);
+    if (!m_listCountKnown)
+    {
+        ATL::CCritSecLock lock(m_CritSection.m_sect);
+        const int extent = m_listItems.loadedExtent();
+        m_lstHeader.SetItemCountEx(extent + (extent > 0 ? m_lstHeader.GetCountPerPage() + 1 : 0), LVSICF_NOSCROLL);
+    }
+    UpdateVisibleRange();
+    if (lParam != 0)
+    {
+        OnRefeshRow(static_cast<WPARAM>(-2), 0);
+        SelectFocusID();
+    }
 	else
 		m_lstHeader.Invalidate();
 	const int firstRow = m_lstHeader.GetTopIndex();
@@ -6806,6 +6910,40 @@ LRESULT CQPasteWnd::OnSearchResultsReady(WPARAM wParam, LPARAM lParam)
 	for (int row = firstRow; row < endRow; ++row)
 		m_lstHeader.PostEventLoadedCheckDescription(row);
 	return 0;
+}
+
+LRESULT CQPasteWnd::OnExtraDataReady(WPARAM wParam, LPARAM lParam)
+{
+    std::unique_ptr<CClipFormatQListCtrl> result(reinterpret_cast<CClipFormatQListCtrl*>(wParam));
+    m_extraDataThread.AcknowledgeExtraData();
+    if (!result || result->m_generation != m_extraDataThread.ExtraDataGeneration())
+        return 0;
+    const int row = result->m_clipRow;
+    const int id = result->m_parentId;
+    UpdateVisibleRange();
+    {
+        ATL::CCritSecLock lock(m_CritSection.m_sect);
+        if (row < m_visibleFirstRow || row > m_visibleLastRow ||
+            !m_listItems.contains(row) || m_listItems[row].m_lID != id)
+            return 0;
+        const bool image = result->m_cfType == CF_DIB || result->m_cfType == theApp.m_PNG_Format;
+        auto& cache = image ? m_cf_dibCache : m_cf_rtfCache;
+        auto& absent = image ? m_cf_NO_dibCache : m_cf_NO_rtfCache;
+        if (cache.find(id) != cache.end())
+            return 0;
+        if (result->m_hgData != nullptr)
+        {
+            result->m_counter = ++m_extraDataCounter;
+            cache[id] = *result;
+            cache[id].m_autoDeleteData = true;
+            result->m_autoDeleteData = false;
+        }
+        else
+            absent[id] = true;
+        CQPasteWndThread::TrimExtraDataCache(this);
+    }
+    OnRefeshRow(id, row);
+    return 0;
 }
 
 LRESULT CQPasteWnd::OnRefeshRow(WPARAM wParam, LPARAM lParam)
@@ -6816,7 +6954,12 @@ LRESULT CQPasteWnd::OnRefeshRow(WPARAM wParam, LPARAM lParam)
 	int topIndex = m_lstHeader.GetTopIndex();
 	int lastIndex = topIndex + m_lstHeader.GetCountPerPage();
 
-	if (listPos >= topIndex && listPos <= lastIndex)
+    bool currentRow = clipId < 0;
+    {
+        ATL::CCritSecLock lock(m_CritSection.m_sect);
+        currentRow = currentRow || (m_listItems.contains(listPos) && m_listItems[listPos].m_lID == clipId);
+    }
+    if (listPos >= topIndex && listPos <= lastIndex && currentRow)
 	{
 		m_lstHeader.RefreshRow(listPos);
 		m_lstHeader.PostEventLoadedCheckDescription(listPos);
@@ -6829,7 +6972,7 @@ LRESULT CQPasteWnd::OnRefeshRow(WPARAM wParam, LPARAM lParam)
 			int loadedCount = 0;
 			{
 				ATL::CCritSecLock csLock(m_CritSection.m_sect);
-				loadedCount = (int)m_listItems.size();
+				loadedCount = m_listItems.loadedExtent();
 			}
 			m_lstHeader.SetItemCountEx(loadedCount);
 		}
@@ -6847,14 +6990,23 @@ void CQPasteWnd::SelectFocusID()
 {
 	ATL::CCritSecLock csLock(m_CritSection.m_sect);
 
+    if (theApp.m_FocusID > 0 && !m_resultIds.empty())
+    {
+        const auto selected = std::find(m_resultIds.begin(), m_resultIds.end(), theApp.m_FocusID);
+        if (selected != m_resultIds.end())
+        {
+            m_lstHeader.SetListPos(static_cast<int>(selected - m_resultIds.begin()));
+            return;
+        }
+    }
 	bool selectedItem = false;
 	int index = 0;
-	std::vector<CMainTable>::iterator iter = m_listItems.begin();
+	auto iter = m_listItems.begin();
 	while (iter != m_listItems.end())
 	{
-		if (iter->m_lID == theApp.m_FocusID)
+		if (iter->second.m_lID == theApp.m_FocusID)
 		{
-			m_lstHeader.SetListPos(index);
+			m_lstHeader.SetListPos(iter->first);
 			selectedItem = true;
 			break;
 		}
@@ -6892,7 +7044,14 @@ void CQPasteWnd::OnDestroy()
 
 	CancelPendingSearch();
 	m_thread.Stop();
-	m_extraDataThread.Stop();
+	m_countThread.Stop();
+    m_extraDataThread.Stop();
+    MSG extraResult;
+    while (::PeekMessage(&extraResult, m_hWnd, NM_EXTRA_DATA_READY, NM_EXTRA_DATA_READY, PM_REMOVE))
+    {
+        delete reinterpret_cast<CClipFormatQListCtrl*>(extraResult.wParam);
+        m_extraDataThread.AcknowledgeExtraData();
+    }
 	CWndEx::OnDestroy();
 }
 
@@ -6994,24 +7153,14 @@ void CQPasteWnd::OnAddinSelect(UINT idIn)
 
 LRESULT CQPasteWnd::OnSelectAll(WPARAM wParam, LPARAM lParam)
 {
-	BOOL ret = FALSE;
-	ATL::CCritSecLock csLock(m_CritSection.m_sect);
+    UpdateStatus(false);
+    return FALSE;
+}
 
-	if ((int)m_listItems.size() < m_lstHeader.GetItemCount())
-	{
-		Log(_T("All items selected loading all items from the db"));
-
-		CPoint loadItem(0, m_lstHeader.GetItemCount());
-		m_loadItems.push_back(loadItem);
-
-		m_thread.FireLoadItems(false);
-
-		ret = TRUE;
-
-		UpdateStatus(false);
-	}
-
-	return ret;
+LRESULT CQPasteWnd::OnResolveSelectedIds(WPARAM wParam, LPARAM lParam)
+{
+    auto ids = reinterpret_cast<ARRAY*>(wParam);
+    return ids != nullptr && ResolveSelectionIds(*ids);
 }
 
 LRESULT CQPasteWnd::OnShowHideScrollBar(WPARAM wParam, LPARAM lParam)
@@ -7210,12 +7359,12 @@ LRESULT CQPasteWnd::OnDeleteId(WPARAM wParam, LPARAM lParam)
 	int index = 0;
 	{
 		ATL::CCritSecLock csLock(m_CritSection.m_sect);
-		std::vector<CMainTable>::iterator iter = m_listItems.begin();
+		auto iter = m_listItems.begin();
 		while (iter != m_listItems.end())
 		{
-			if (iter->m_lID == wParam)
+			if (iter->second.m_lID == wParam)
 			{
-				Indexs.Add(index);
+				Indexs.Add(iter->first);
 				break;
 			}
 			iter++;
@@ -7298,58 +7447,51 @@ void CQPasteWnd::OnUpdateMenuSavecurrentclipboard(CCmdUI* pCmdUI)
 
 bool CQPasteWnd::SyncClipDataToArrayData(CClip& clip)
 {
-	int row = 0;
-	bool found = false;
-	std::vector<CMainTable>::iterator iter = m_listItems.begin();
-	while (iter != m_listItems.end())
-	{
-		if (iter->m_lID == clip.ID())
-		{
-			iter->m_clipOrder = clip.m_clipOrder;
-			iter->m_clipGroupOrder = clip.m_clipGroupOrder;
-
-			iter->m_stickyClipOrder = clip.m_stickyClipOrder;
-			iter->m_stickyClipGroupOrder = clip.m_stickyClipGroupOrder;
-
-			found = true;
-			break;
-		}
-		iter++;
-		row++;
-	}
-
-	return found;
+    ATL::CCritSecLock lock(m_CritSection.m_sect);
+    for (auto& row : m_listItems)
+    {
+        auto& item = row.second;
+        if (item.m_lID == clip.ID())
+        {
+            item.m_clipOrder = clip.m_clipOrder;
+            item.m_clipGroupOrder = clip.m_clipGroupOrder;
+            item.m_stickyClipOrder = clip.m_stickyClipOrder;
+            item.m_stickyClipGroupOrder = clip.m_stickyClipGroupOrder;
+            break;
+        }
+    }
+    // An evicted row may still have moved: refresh SQL order in either case.
+    return true;
 }
 
 bool CQPasteWnd::SelectIds(ARRAY& ids)
 {
-	int row = 0;
-	bool found = false;
-	std::vector<CMainTable>::iterator iter = m_listItems.begin();
-
-	//sort so .Find works
-	ids.SortAscending();
-
-	while (iter != m_listItems.end())
-	{
-		if (ids.Find(iter->m_lID))
-		{
-			if (found == false)
-			{
-				m_lstHeader.SetListPos(row);
-			}
-			else
-			{
-				m_lstHeader.SetSelection(row);
-			}
-
-			found = true;
-		}
-		iter++;
-		row++;
-	}
-
-	return found;
+    ids.SortAscending();
+    bool found = false;
+    auto select = [&](int row, int id)
+    {
+        if (id > 0 && ids.Find(id))
+        {
+            if (!found)
+                m_lstHeader.SetListPos(row);
+            else
+                m_lstHeader.SetSelection(row);
+            found = true;
+        }
+    };
+    ATL::CCritSecLock lock(m_CritSection.m_sect);
+    m_lstHeader.RemoveAllSelection();
+    if (!m_resultIds.empty())
+    {
+        for (size_t row = 0; row < m_resultIds.size(); ++row)
+            select(static_cast<int>(row), m_resultIds[row]);
+    }
+    else
+    {
+        for (const auto& row : m_listItems)
+            select(row.first, row.second.m_lID);
+    }
+    return found;
 }
 
 void CQPasteWnd::OnCliporderMoveup()
@@ -8651,6 +8793,8 @@ bool CQPasteWnd::DoDeleteAllNonUsedClips()
 	DeleteNonUsedClips(true);
 	FillList();
 
+    ATL::CCritSecLock lock(m_CritSection.m_sect);
+    m_ExtraDataLoadItems.clear();
 	m_cf_dibCache.clear();
 	m_cf_NO_dibCache.clear();
 	m_cf_rtfCache.clear();

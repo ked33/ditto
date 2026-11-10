@@ -5,7 +5,7 @@ with FTS5/trigram support. Set `DITTO_ICU_EXTENSION` to the freshly compiled
 `ICU_Loader.dll` to test the complete v3 schema and real character tokenizer.
 Without that DLL, the script explicitly skips the five literal-index tests
 and exercises only the cache/trigram portion of the schema. GitHub Actions
-runs all 18 schema/search tests and the 6 filter tests with the compiled DLL before packaging.
+runs all 18 schema/search tests and the 9 filter tests with the compiled DLL before packaging.
 Tests use only generated in-memory or temporary
 databases. They extract the production SQL factories from
 `src/SearchIndexSql.cpp`; they never open the user's clipboard database.
@@ -83,3 +83,6 @@ queries for two Chinese characters, `no`, and `demo` took about 1, 43, and 93 ms
 These are exploratory model timings, not app UI latency or native DLL timings.
 Cold storage, concurrent clipboard writes, initial migration, and unusually
 common/long phrases still need observation in the installed application.
+
+See [OPTIMIZATION_VALIDATION.md](OPTIMIZATION_VALIDATION.md) for storage,
+paging, preview, cache and worker shutdown checks.

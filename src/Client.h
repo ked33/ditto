@@ -46,6 +46,7 @@ public:
 	CClient();
 	virtual ~CClient();
 
+	void SetCancellationFlag(const std::atomic<bool>* flag) { m_cancelled = flag; m_SendSocket.SetCancellationFlag(flag); }
 	BOOL SendItem(CClip *pClip, bool manualSend);
 	
 	BOOL OpenConnection(const TCHAR* servername);
@@ -56,6 +57,7 @@ public:
 protected:
 	SOCKET m_Connection;
 	int m_connectionPort;
+	const std::atomic<bool>* m_cancelled = nullptr;
 
 	CSendSocket m_SendSocket;
 

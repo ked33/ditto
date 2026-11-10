@@ -3,6 +3,8 @@
 #include "sqlite/CppSQLite3.h"
 #include <atomic>
 
+class CQPasteWnd;
+
 class CQPasteWndThread: public CEventThread
 {
 public:
@@ -21,10 +23,13 @@ public:
 
     };
 
-    void FireSetListCount()
-    {
-        FireEvent(DO_SET_LIST_COUNT);
-    }
+    void FireSetListCount();
+    void SetCountOnly() { m_countOnly = true; }
+    UINT_PTR Generation() const { return m_generation.load(); }
+    UINT_PTR ExtraDataGeneration() const { return m_extraGeneration.load(); }
+    void CancelExtraData() { ++m_extraGeneration; }
+    void AcknowledgeExtraData() { --m_pendingExtraResults; }
+    static void TrimExtraDataCache(CQPasteWnd* pasteWnd);
     void FireLoadItems(bool firstLoad)
     {
         FireLoadItemsRequest();
@@ -46,6 +51,7 @@ public:
     HANDLE m_SearchingEvent;
 
 	void SetRowHeight(int height) { m_rowHeight = height; }
+    void SetMaxImageWidth(int width) { m_maxImageWidth = max(width, 1); }
     void SetSearchSql(const CString& sql, const CString& countSql, const CString& databasePath);
     void CancelSearch();
     void ResumeSearch();
@@ -65,7 +71,11 @@ protected:
 
 	CString EnumName(eCQPasteWndThreadEvents e);
 
-	int m_rowHeight;
+    std::atomic<int> m_rowHeight{0};
+    std::atomic<int> m_maxImageWidth{1024};
+    std::atomic<UINT_PTR> m_extraGeneration{1};
+    std::atomic<int> m_pendingExtraResults{0};
+    bool m_countOnly = false;
 
 private:
     struct SearchRequest

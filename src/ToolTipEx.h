@@ -9,6 +9,7 @@
 #include "Accels.h"
 #include "SnapWindow.h"
 #include "SimpleBrowser.h"
+#include "AsyncClipPreview.h"
 
 class CToolTipEx : public CWnd
 {
@@ -29,6 +30,9 @@ public:
 	void SetRTFText(const CStringA &rtf);
 	void SetHtmlText(const CString &html);
 	void SetGdiplusBitmap(Gdiplus::Bitmap *gdiplusBitmap);
+	void BeginPreview(HWND owner, const CString& description);
+	void SetPreviewFormats(const ClipPreviewResult& result);
+	void ApplyPreview(ClipPreviewResult& result, CPoint point);
 	void SetNotifyWnd(CWnd *pNotify)		{ m_pNotifyWnd = pNotify;	}
 	void HideWindowInXMilliSeconds(long lms);
 	CRect GetBoundsRect();
@@ -107,6 +111,14 @@ protected:
 	bool m_showingRTF;
 	bool m_showingHTML;
 	bool m_showingImage;
+	HWND m_previewOwner = nullptr;
+	int m_previewWordCount = -1;
+	bool m_hasPreviewText = false;
+	bool m_hasPreviewRichText = false;
+	bool m_hasPreviewHtml = false;
+	bool m_hasPreviewImage = false;
+	bool RequestPreviewFormat(ClipPreviewFormat format);
+	bool HasPreviewFormat(ClipPreviewFormat format) const;
 
 protected:
 	CString GetFieldFromString(CString ref, int nIndex, TCHAR ch);	

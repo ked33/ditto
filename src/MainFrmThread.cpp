@@ -8,6 +8,7 @@
 CMainFrmThread::CMainFrmThread(void)
 {
 	m_threadName = "CMainFrmThread";
+	m_maintenancePending = false;
     for(int eventEnum = 0; eventEnum < ECMAINFRMTHREADEVENTS_COUNT; eventEnum++)
     {
         AddEvent(eventEnum);
@@ -16,7 +17,7 @@ CMainFrmThread::CMainFrmThread(void)
 
 CMainFrmThread::~CMainFrmThread(void)
 {
-
+	Stop();
 }
 
 void CMainFrmThread::AddClipToSave(CClip *pClip)
@@ -96,9 +97,24 @@ void CMainFrmThread::OnReadDbFile()
 	}
 }
 
+bool CMainFrmThread::HasPendingSaves()
+{
+	ATL::CCritSecLock csLock(m_cs.m_sect);
+	return !m_saveClips.IsEmpty() || !m_saveRemoteClips.IsEmpty();
+}
+
 void CMainFrmThread::OnDeleteEntries()
 {
-    RemoveOldEntries(true);
+	RemoveOldEntries(true, [this]() { return IsCancelled() || HasPendingSaves(); }, &m_maintenancePending);
+	// A timeout (rather than a repeatedly signaled event) lets queued saves run
+	// first and avoids spinning while the database is busy or the user is active.
+	m_waitTimeout = m_maintenancePending ? 1000 : INFINITE;
+}
+
+void CMainFrmThread::OnTimeOut(void* param)
+{
+	if (m_maintenancePending)
+		OnDeleteEntries();
 }
 
 void CMainFrmThread::OnRemoveTempFiles()
@@ -139,6 +155,7 @@ void CMainFrmThread::OnSaveClips()
 
 	if(count > 0)
 	{
+		copyReason = pLocalClips->GetTail()->m_copyReason;
 		int Id = pLocalClips->GetTail()->m_id;
 
 		Log(StrF(_T("SaveCopyclips After AddToDb, Id: %d Before OnCopyCopyCompleted"), Id));
@@ -203,7 +220,7 @@ void CMainFrmThread::OnSaveRemoteClips()
 	LogSendRecieveInfo("---------OnSaveRemoteClips - After AddToDB");
 
 	//are we supposed to add this clip to the clipboard
-	CClip *pLastClip = pLocalClips->GetTail();
+	CClip *pLastClip = pLocalClips->IsEmpty() ? nullptr : pLocalClips->GetTail();
 	if (CGetSetOptions::GetShowMsgWhenReceivingManualSentClip())
 	{
 		if (pLastClip && (pLastClip->m_param1 & REMOTE_CLIP_MANUAL_SEND))

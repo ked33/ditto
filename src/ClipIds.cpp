@@ -265,7 +265,7 @@ BOOL CClipIDs::CopyTo(int parentId)
 		
 	try
 	{
-		theApp.m_db.execDML(_T("begin transaction;"));
+		CppSQLite3Transaction transaction(theApp.m_db);
 
 		for(int i = 0; i < count; i++)
 		{
@@ -286,14 +286,15 @@ BOOL CClipIDs::CopyTo(int parentId)
 					if(clip.AddToDB(false) == false)
 					{
 						Log(_T("failed to add copy to database"));
+						return FALSE;
 					}
 				}
 			}
 		}
 
-		theApp.m_db.execDML(_T("commit transaction;"));
+		transaction.commit();
 	}
-	CATCH_SQLITE_EXCEPTION
+	CATCH_SQLITE_EXCEPTION_AND_RETURN(FALSE)
 		
 	return TRUE;
 }

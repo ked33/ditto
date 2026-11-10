@@ -741,6 +741,7 @@
     <ClCompile Include="src\SaveAnimation.cpp" />
     <ClCompile Include="src\ScriptEditor.cpp" />
     <ClCompile Include="src\ScrollHelper.cpp" />
+    <ClCompile Include="src\AsyncClipPreview.cpp" />
     <ClCompile Include="src\SearchIndex.cpp" />
     <ClCompile Include="src\SearchIndexSql.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
@@ -975,6 +976,9 @@
     <ClInclude Include="src\SaveAnimation.h" />
     <ClInclude Include="src\ScriptEditor.h" />
     <ClInclude Include="src\ScrollHelper.h" />
+    <ClInclude Include="src\AsyncClipPreview.h" />
+    <ClInclude Include="src\SearchResultCache.h" />
+    <ClInclude Include="src\CancelableSocket.h" />
     <ClInclude Include="src\SearchIndex.h" />
     <ClInclude Include="src\SearchIndexSql.h" />
     <ClInclude Include="src\SearchEditBox.h" />

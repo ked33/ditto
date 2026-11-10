@@ -5,6 +5,8 @@
 #include "stdafx.h"
 #include "cp_main.h"
 #include "Client.h"
+#include "CancelableSocket.h"
+#include <climits>
 #include "..\Shared\TextConvert.h"
 #include "RecieveSocket.h"
 #include "FileRecieve.h"
@@ -116,10 +118,13 @@ BOOL CClient::CloseConnection()
 
 BOOL CClient::OpenConnection(const TCHAR* servername)
 {
+	if (CancelableSocket::IsCancelled(m_cancelled))
+		return FALSE;
 	WSADATA wsaData;
 	unsigned int addr = INADDR_NONE;
-	struct sockaddr_in server;
-	int wsaret=WSAStartup(0x101,&wsaData);
+	struct sockaddr_in server = {};
+	const WORD socketVersion = m_cancelled != nullptr ? MAKEWORD(2, 2) : MAKEWORD(1, 1);
+	int wsaret = WSAStartup(socketVersion, &wsaData);
 	if(wsaret)	
 	{
 		LogSendRecieveInfo("ERROR - WSAStartup(0x101,&wsaData)");
@@ -133,6 +138,8 @@ BOOL CClient::OpenConnection(const TCHAR* servername)
 		LogSendRecieveInfo("ERROR - socket(AF_INET,SOCK_STREAM,IPPROTO_TCP)");
 		
 		m_Connection = NULL;
+		if (m_cancelled != nullptr)
+			WSACleanup();
 		return FALSE;
 	}
 
@@ -164,39 +171,54 @@ BOOL CClient::OpenConnection(const TCHAR* servername)
 	addr = inet_addr(csServerNameA);
 	if(addr == INADDR_NONE)
 	{
-		struct hostent *hp = gethostbyname(csServerNameA);
-		if(hp != NULL)
+		if (m_cancelled != nullptr)
 		{
-			addr = *(unsigned int*)hp->h_addr;
+			CancelableSocket::ResolveIPv4(parsedServerName, m_cancelled, addr);
+		}
+		else
+		{
+			struct hostent *hp = gethostbyname(csServerNameA);
+			if(hp != NULL)
+				addr = *(unsigned int*)hp->h_addr;
 		}
 	}
 
-	if(addr == NULL || addr == INADDR_NONE)
+	if(addr == NULL || addr == INADDR_NONE || CancelableSocket::IsCancelled(m_cancelled))
 	{
 		LogSendRecieveInfo("addr == NULL || addr == INADDR_NONE");
 
 		closesocket(m_Connection);
 		m_Connection = NULL;
+		if (m_cancelled != nullptr)
+			WSACleanup();
 		return FALSE;
 	}
 
 	server.sin_addr.s_addr = addr;
 	server.sin_family = AF_INET;
 	server.sin_port = htons((u_short)m_connectionPort);
-	if(connect(m_Connection, (struct sockaddr*)&server, sizeof(server)))
+	const bool connected = m_cancelled != nullptr ?
+		CancelableSocket::Connect(m_Connection, server, m_cancelled) :
+		connect(m_Connection, reinterpret_cast<sockaddr*>(&server), static_cast<int>(sizeof(server))) == 0;
+	if (!connected)
 	{
 		int nWhy = WSAGetLastError();
 		LogSendRecieveInfo(StrF(_T("ERROR if(connect(m_Connection,(struct sockaddr*)&server,sizeof(server))) why = %d"), nWhy));
 		closesocket(m_Connection);
 		m_Connection = NULL;
-		return FALSE;	
+		if (m_cancelled != nullptr)
+			WSACleanup();
+		return FALSE;
 	}
+	m_SendSocket.SetSocket(m_Connection);
 
 	return TRUE;
 }
 
 BOOL CClient::SendItem(CClip *pClip, bool manualSend)
 {
+	if (CancelableSocket::IsCancelled(m_cancelled))
+		return FALSE;
 	CSendInfo Info;
 
 	Info.m_manualSend = manualSend;
@@ -211,7 +233,19 @@ BOOL CClient::SendItem(CClip *pClip, bool manualSend)
 	CStringA dest = CTextConvert::UnicodeToUTF8(GetComputerName());
 	strncpy(Info.m_cComputerName, dest, sizeof(Info.m_cComputerName));
 	
-	dest = CTextConvert::UnicodeToUTF8(GetIPAddress());
+	if (m_cancelled != nullptr)
+	{
+		// Use the interface of the established connection, avoiding another
+		// synchronous DNS lookup of this machine while shutting down.
+		sockaddr_in localAddress = {};
+		int localLength = static_cast<int>(sizeof(localAddress));
+		if (getsockname(m_Connection, reinterpret_cast<sockaddr*>(&localAddress), &localLength) == 0)
+			dest = inet_ntoa(localAddress.sin_addr);
+		else
+			dest.Empty();
+	}
+	else
+		dest = CTextConvert::UnicodeToUTF8(GetIPAddress());
 	strncpy(Info.m_cIP, dest, sizeof(Info.m_cIP));	
 	
 	dest = CTextConvert::UnicodeToUTF8(pClip->m_Desc);
@@ -236,7 +270,8 @@ BOOL CClient::SendItem(CClip *pClip, bool manualSend)
 	{
 		pCF = &pClip->m_Formats.GetData()[i];
 		
-		SendClipFormat(pCF);
+		if (CancelableSocket::IsCancelled(m_cancelled) || !SendClipFormat(pCF))
+			return FALSE;
 	}
 	
 	if(m_SendSocket.SendCSendData(Info, MyEnums::END) == FALSE)
@@ -249,56 +284,36 @@ BOOL CClient::SendItem(CClip *pClip, bool manualSend)
 
 BOOL CClient::SendClipFormat(CClipFormat* pCF)
 {
-	CSendInfo Info;
-	LPVOID pvData = GlobalLock(pCF->m_hgData);
-	INT_PTR length = GlobalSize(pCF->m_hgData);
-	UCHAR* pOutput = NULL;
-	int nLenOutput = 0;
-	CTextConvert Convert;
-	BOOL bRet = FALSE;
-
-	LogSendRecieveInfo(StrF(_T("BEFORE Encrypt clip data %d"), length));
-
-	if(m_SendSocket.m_pEncryptor)
-	{
-		if(m_SendSocket.m_pEncryptor->Encrypt((UCHAR*)pvData, (int)length, CGetSetOptions::m_csPassword, pOutput, nLenOutput))
-		{
-			LogSendRecieveInfo(StrF(_T("AFTER Encrypt clip data %d"), nLenOutput));
-
-			Info.m_lParameter1 = nLenOutput;
-
-			//Send over as UTF-8
-			CStringA dest = CTextConvert::UnicodeToUTF8(GetFormatName(pCF->m_cfType));
-			strncpy(Info.m_cDesc, dest, sizeof(Info.m_cDesc));
-			Info.m_cDesc[sizeof(Info.m_cDesc)-1] = 0;
-			
-			if(m_SendSocket.SendCSendData(Info, MyEnums::DATA_START) == FALSE)
-				return FALSE;
-
-			m_SendSocket.SendExactSize((char*)pOutput, nLenOutput, false);
-
-			m_SendSocket.m_pEncryptor->FreeBuffer(pOutput);
-
-			bRet = TRUE;
-		}
-		else
-		{
-			LogSendRecieveInfo("Failed to encrypt data");
-			return FALSE;
-		}
-	}
-	else
-	{
-		ASSERT(!"SendItem::Encryption not initialized");
-		LogSendRecieveInfo("SendItem::Encryption not initialized");	
-	}
-
-	GlobalUnlock(pCF->m_hgData);
-	
-	if(m_SendSocket.SendCSendData(Info, MyEnums::DATA_END) == FALSE)
+	if (CancelableSocket::IsCancelled(m_cancelled) || m_SendSocket.m_pEncryptor == nullptr)
 		return FALSE;
+	const SIZE_T length = GlobalSize(pCF->m_hgData);
+	if (length > INT_MAX)
+		return FALSE;
+	LPVOID data = GlobalLock(pCF->m_hgData);
+	if (data == nullptr)
+		return FALSE;
+	UCHAR* encrypted = nullptr;
+	int encryptedLength = 0;
+	const bool encryptedOk = m_SendSocket.m_pEncryptor->Encrypt(static_cast<UCHAR*>(data),
+		static_cast<int>(length), CGetSetOptions::m_csPassword, encrypted, encryptedLength);
+	GlobalUnlock(pCF->m_hgData);
+	if (!encryptedOk)
+	{
+		LogSendRecieveInfo("Failed to encrypt data");
+		return FALSE;
+	}
 
-	return bRet;
+	CSendInfo info;
+	info.m_lParameter1 = encryptedLength;
+	CStringA format = CTextConvert::UnicodeToUTF8(GetFormatName(pCF->m_cfType));
+	strncpy(info.m_cDesc, format, sizeof(info.m_cDesc));
+	info.m_cDesc[sizeof(info.m_cDesc) - 1] = 0;
+	const BOOL sent = m_SendSocket.SendCSendData(info, MyEnums::DATA_START) &&
+		m_SendSocket.SendExactSize(reinterpret_cast<char*>(encrypted), encryptedLength, false);
+	m_SendSocket.m_pEncryptor->FreeBuffer(encrypted);
+	if (!sent)
+		return FALSE;
+	return m_SendSocket.SendCSendData(info, MyEnums::DATA_END);
 }
 
 HGLOBAL CClient::RequestCopiedFiles(CClipFormat &HDropFormat, CString csIP, CString csComputerName)

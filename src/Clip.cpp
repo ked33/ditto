@@ -19,6 +19,7 @@
 
 #include <Mmsystem.h>
 #include <memory>
+#include <climits>
 
 #include "Path.h"
 #include <set>
@@ -133,6 +134,7 @@ CClipFormat::CClipFormat(CLIPFORMAT cfType, HGLOBAL hgData, int parentId)
 {
 	m_cfType = cfType;
 	m_hgData = hgData;
+	m_dataId = -1;
 	m_autoDeleteData = true;
 	m_parentId = parentId;
 }
@@ -779,90 +781,98 @@ bool CClip::SetDescFromType()
 	return m_Desc.GetLength() > 0;
 }
 
-bool CClip::AddToDB(bool bCheckForDuplicates)
+namespace
 {
-	bool bResult;
+	// Restore row identities if a multi-format save rolls back.
+	class ClipSaveState
+	{
+	public:
+		explicit ClipSaveState(CClip& clip) : m_clip(clip), m_id(clip.m_id), m_committed(false)
+		{
+			for (INT_PTR i = 0; i < clip.m_Formats.GetSize(); ++i)
+				m_dataIds.push_back(clip.m_Formats[i].m_dataId);
+		}
+		~ClipSaveState()
+		{
+			if (!m_committed)
+			{
+				m_clip.m_id = m_id;
+				for (INT_PTR i = 0; i < m_clip.m_Formats.GetSize() && i < (INT_PTR)m_dataIds.size(); ++i)
+					m_clip.m_Formats[i].m_dataId = m_dataIds[i];
+			}
+		}
+		void commit() { m_committed = true; }
+	private:
+		CClip& m_clip;
+		int m_id;
+		std::vector<int> m_dataIds;
+		bool m_committed;
+	};
+}
+
+bool CClip::AddToDB(bool bCheckForDuplicates, bool latestOrder)
+{
 	try
 	{
 		m_Time = CTime::GetCurrentTime().GetTime();
-
 		m_CRC = GenerateCRC();
+		ClipSaveState savedState(*this);
+		CppSQLite3Transaction transaction(theApp.m_db);
+		if (latestOrder)
+		{
+			MakeLatestOrder();
+			MakeLatestGroupOrder();
+		}
 
-		if(bCheckForDuplicates &&
-			m_parentId < 0)
-		{	
+		if (bCheckForDuplicates && m_parentId < 0)
+		{
 			int nID = FindDuplicate();
-			if(nID >= 0)
+			if (nID >= 0)
 			{
 				MakeLatestOrder();
 				MakeLatestGroupOrder();
-
 				// The source belongs to the original saved clip, not a later duplicate.
 				CString sql = _T("UPDATE Main SET clipOrder = ? WHERE lID = ?;");
 				CppSQLite3Statement stmt = theApp.m_db.compileStatement(sql);
 				stmt.bind(1, m_clipOrder);
 				stmt.bind(2, nID);
-				int ret = stmt.execDML();
-
-				int groupRet = -1;
-
-				if(m_parentId > -1)
-				{
-					sql.Format(_T("UPDATE Main SET clipGroupOrder = %f where lID = %d;"), 
-						m_clipGroupOrder, nID);
-
-					groupRet = theApp.m_db.execDML(sql);
-				}
-
-
+				stmt.execDML();
 				m_id = nID;
-
-				Log(StrF(_T("Found duplicate clip in db, Id: %d, ParentId: %d crc: %d, NewOrder: %f, GroupOrder %f, Ret: %d, GroupRet: %d, SQL: %s"), 
-										nID, m_parentId, m_CRC, m_clipOrder, m_clipGroupOrder, ret, groupRet, sql));
-
+				transaction.commit();
+				savedState.commit();
 				return true;
 			}
 		}
+
+		int removeStickySettingClipId = -1;
+		if (m_addToDbStickyEnum == AddToDbStickyEnum::MAKE_TOP_STICKY)
+			m_stickyClipOrder = GetNewTopSticky(m_parentId, -1);
+		else if (m_addToDbStickyEnum == AddToDbStickyEnum::MAKE_LAST_STICKY)
+			m_stickyClipOrder = GetNewLastSticky(m_parentId, -1);
+		else if (m_addToDbStickyEnum == AddToDbStickyEnum::REPLACE_TOP_STICKY)
+		{
+			m_stickyClipOrder = GetNewTopSticky(m_parentId, -1);
+			removeStickySettingClipId = GetExistingTopStickyClipId(m_parentId);
+		}
+
+		if (!AddToMainTable() || !AddToDataTable())
+			return false;
+		if (removeStickySettingClipId > 0)
+			RemoveStickySetting(removeStickySettingClipId, m_parentId);
+
+		transaction.commit();
+		savedState.commit();
+		// Nested callers own the eventual commit; do not cache uncommitted IDs.
+		if (transaction.isOutermost())
+		{
+			m_LastAddedCRC = m_CRC;
+			m_lastAddedID = m_id;
+		}
+		if (!CGetSetOptions::m_csPlaySoundOnCopy.IsEmpty())
+			PlaySound(CGetSetOptions::m_csPlaySoundOnCopy, NULL, SND_FILENAME | SND_ASYNC);
+		return true;
 	}
 	CATCH_SQLITE_EXCEPTION_AND_RETURN(false)
-
-	int removeStickySettingClipId = -1;
-
-	if (m_addToDbStickyEnum == AddToDbStickyEnum::MAKE_TOP_STICKY)
-	{
-		m_stickyClipOrder = this->GetNewTopSticky(m_parentId, -1);
-	}
-	else if (m_addToDbStickyEnum == AddToDbStickyEnum::MAKE_LAST_STICKY)
-	{
-		m_stickyClipOrder = this->GetNewLastSticky(m_parentId, -1);
-	}
-	else if (m_addToDbStickyEnum == AddToDbStickyEnum::REPLACE_TOP_STICKY)
-	{
-		m_stickyClipOrder = this->GetNewTopSticky(m_parentId, -1);
-		removeStickySettingClipId = GetExistingTopStickyClipId(m_parentId);
-	}
-	
-	bResult = false;
-	if(AddToMainTable())
-	{		
-		bResult = AddToDataTable();
-	}
-
-	if(bResult)
-	{
-		if(CGetSetOptions::m_csPlaySoundOnCopy.IsEmpty() == FALSE)
-			PlaySound(CGetSetOptions::m_csPlaySoundOnCopy, NULL, SND_FILENAME|SND_ASYNC);
-
-		if (removeStickySettingClipId > 0)
-		{
-			RemoveStickySetting(removeStickySettingClipId, m_parentId);
-		}
-	}
-	
-	// should be emptied by AddToDataTable
-	//ASSERT(m_Formats.GetSize() == 0);
-	
-	return bResult;
 }
 
 // if a duplicate exists, set recset to the duplicate and return true
@@ -876,7 +886,8 @@ int CClip::FindDuplicate()
 		{
 			if (CGetSetOptions::m_allowBackToBackDuplicates == FALSE)
 			{
-				if (m_CRC == m_LastAddedCRC)
+				if (m_CRC == m_LastAddedCRC && m_lastAddedID > 0 &&
+					theApp.m_db.execScalarEx(_T("SELECT EXISTS(SELECT 1 FROM Main WHERE lID = %d AND CRC = %d)"), m_lastAddedID, m_CRC))
 					return m_lastAddedID;
 			}
 		}
@@ -969,20 +980,22 @@ bool CClip::AddToMainTable()
 {
 	try
 	{
-		m_Desc.Replace(_T("'"), _T("''"));
-		m_csQuickPaste.Replace(_T("'"), _T("''"));
+		CString description(m_Desc);
+		description.Replace(_T("'"), _T("''"));
+		CString quickPaste(m_csQuickPaste);
+		quickPaste.Replace(_T("'"), _T("''"));
 
 		CString cs;
 		cs.Format(_T("INSERT into Main (lDate, mText, lShortCut, lDontAutoDelete, CRC, bIsGroup, lParentID, QuickPasteText, clipOrder, clipGroupOrder, globalShortCut, lastPasteDate, stickyClipOrder, stickyClipGroupOrder, MoveToGroupShortCut, GlobalMoveToGroupShortCut, firstCopyProcess) ")
 						_T("values(%lld, '%s', %d, %d, %d, %d, %d, '%s', %f, %f, %d, %lld, %f, %f, %d, %d, ?);"),
 							m_Time.GetTime(),
-							m_Desc,
+							description,
 							m_shortCut,
 							m_dontAutoDelete,
 							m_CRC,
 							m_bIsGroup,
 							m_parentId,
-							m_csQuickPaste,
+							quickPaste,
 							m_clipOrder,
 							m_clipGroupOrder,
 							m_globalShortCut,
@@ -1000,8 +1013,6 @@ bool CClip::AddToMainTable()
 
 		Log(StrF(_T("Added clip to main table, Id: %d, ParentId: %d Desc: %s, Order: %f, GroupOrder: %f"), m_id, m_parentId, m_Desc, m_clipOrder, m_clipGroupOrder));
 
-		m_LastAddedCRC = m_CRC;
-		m_lastAddedID = m_id;
 	}
 	CATCH_SQLITE_EXCEPTION_AND_RETURN(false)
 	
@@ -1055,11 +1066,12 @@ bool CClip::ModifyDescription()
 	bool bRet = false;
 	try
 	{
-		m_Desc.Replace(_T("'"), _T("''"));
+		CString description(m_Desc);
+		description.Replace(_T("'"), _T("''"));
 
 		theApp.m_db.execDMLEx(_T("UPDATE Main SET mText = '%s' ")
 			_T("WHERE lID = %d;"),
-			m_Desc,
+			description,
 			m_id);
 
 		bRet = true;
@@ -1076,6 +1088,8 @@ bool CClip::AddToDataTable()
 
 	try
 	{
+		ClipSaveState savedState(*this);
+		CppSQLite3Transaction transaction(theApp.m_db);
 		CppSQLite3Statement stmt = theApp.m_db.compileStatement(_T("insert into Data values (NULL, ?, ?, ?);"));
 		
 		for(INT_PTR i = m_Formats.GetSize()-1; i >= 0 ; i--)
@@ -1088,14 +1102,25 @@ bool CClip::AddToDataTable()
 			stmt.bind(1, m_id);
 			stmt.bind(2, formatName);
 
-			const unsigned char *Data = (const unsigned char *)GlobalLock(pCF->m_hgData);
-			if(Data)
+			const SIZE_T dataSize = GlobalSize(pCF->m_hgData);
+			if (dataSize > INT_MAX)
+				return false;
+			const unsigned char* data = static_cast<const unsigned char*>(GlobalLock(pCF->m_hgData));
+			if (data == nullptr)
+				return false;
+			clipSize = static_cast<int>(dataSize);
+			try
 			{
-				clipSize = (int)GlobalSize(pCF->m_hgData);
-				stmt.bind(3, Data, clipSize);
+				// bind() copies the BLOB; do not retain a locked HGLOBAL while writing.
+				stmt.bind(3, data, clipSize);
+			}
+			catch (...)
+			{
+				GlobalUnlock(pCF->m_hgData);
+				throw;
 			}
 			GlobalUnlock(pCF->m_hgData);
-			
+
 			stmt.execDML();
 			stmt.reset();
 
@@ -1103,12 +1128,16 @@ bool CClip::AddToDataTable()
 
 			Log(StrF(_T("Added ClipData to DB, Id: %d, ParentId: %d Type: %s, size: %d"), pCF->m_dataId, m_id, formatName, clipSize));
 		}
+		// A missing index is a supported fallback. An initialized index failing
+		// to update must roll back the formats instead of leaving stale results.
+		if (SearchIndex::IsReady() &&
+			!SearchIndex::UpdateClipFullText(theApp.m_db, m_id, GetUnicodeTextFormat()))
+			return false;
+		transaction.commit();
+		savedState.commit();
+		return true;
 	}
 	CATCH_SQLITE_EXCEPTION_AND_RETURN(false)
-
-	SearchIndex::UpdateClipFullText(theApp.m_db, m_id, GetUnicodeTextFormat());
-		
-	return true;
 }
 
 void CClip::MoveUp(int parentId)
@@ -1930,7 +1959,8 @@ BOOL CClip::SaveFormats(CString *unicode, CStringA *asci, CStringA *rtf, BOOL up
 	{
 		m_CRC = GenerateCRC();
 
-		theApp.m_db.execDML(_T("begin transaction;"));
+		ClipSaveState savedState(*this);
+		CppSQLite3Transaction transaction(theApp.m_db);
 
 		auto count = deletedData.GetSize();
 		for (int i = 0; i < count; i++)
@@ -1942,19 +1972,24 @@ BOOL CClip::SaveFormats(CString *unicode, CStringA *asci, CStringA *rtf, BOOL up
 		{
 			if (updateDescription)
 			{
-				ModifyDescription();
+				if (!ModifyDescription())
+					return FALSE;
 			}
 		}
 		else
 		{
 			MakeLatestOrder();
 			MakeLatestGroupOrder();
-			AddToMainTable();
+			if (!AddToMainTable())
+				return FALSE;
 		}
 
-		AddToDataTable();
+		if (!AddToDataTable())
+			return FALSE;
 
-		theApp.m_db.execDML(_T("commit transaction;"));
+		theApp.m_db.execDMLEx(_T("UPDATE Main SET CRC = %d WHERE lID = %d"), m_CRC, m_id);
+		transaction.commit();
+		savedState.commit();
 	}
 	CATCH_SQLITE_EXCEPTION_AND_RETURN(false)
 
@@ -2125,20 +2160,26 @@ bool CClip::SaveFromEditWnd(BOOL bUpdateDesc)
 
 	try
 	{
+		ClipSaveState savedState(*this);
+		CppSQLite3Transaction transaction(theApp.m_db);
 		theApp.m_db.execDMLEx(_T("DELETE FROM Data WHERE lParentID = %d;"), m_id);
 
 		DWORD CRC = GenerateCRC();
 
-		AddToDataTable();
+		if (!AddToDataTable())
+			return false;
 
 		theApp.m_db.execDMLEx(_T("UPDATE Main SET CRC = %d WHERE lID = %d"), CRC, m_id);
 
 		if (bUpdateDesc)
 		{
-			m_Desc.Replace(_T("'"), _T("''"));
-			theApp.m_db.execDMLEx(_T("UPDATE Main SET mText = '%s' WHERE lID = %d"), m_Desc, m_id);
+			CString description(m_Desc);
+			description.Replace(_T("'"), _T("''"));
+			theApp.m_db.execDMLEx(_T("UPDATE Main SET mText = '%s' WHERE lID = %d"), description, m_id);
 		}
 
+		transaction.commit();
+		savedState.commit();
 		bRet = true;
 	}
 	CATCH_SQLITE_EXCEPTION
@@ -2161,7 +2202,7 @@ CClipList::~CClipList()
 }
 
 // returns the number of clips actually saved
-// while this does empty the Format Data, it does not delete the Clips.
+// Successful clips remain owned by the list; failed clips are removed and freed.
 int CClipList::AddToDB(bool bLatestOrder)
 {
 	Log(_T("AddToDB - Start"));
@@ -2178,19 +2219,20 @@ int CClipList::AddToDB(bool bLatestOrder)
 		Log(StrF(_T("AddToDB - while(pos), Start Remaining %d"), remaining));
 		remaining--;
 		
+		POSITION clipPosition = pos;
 		pClip = GetNext(pos);
 		ASSERT(pClip);
 		
-		if(bLatestOrder)
-		{
-			pClip->MakeLatestOrder();
-			pClip->MakeLatestGroupOrder();
-		}
-
-		bResult = pClip->AddToDB();
+		bResult = pClip->AddToDB(true, bLatestOrder);
 		if(bResult)
 		{
 			savedCount++;
+		}
+		else
+		{
+			// Failed clips must not be announced, pasted, or sent as saved clips.
+			RemoveAt(clipPosition);
+			delete pClip;
 		}
 
 		Log(StrF(_T("AddToDB - while(pos), End Remaining %d, save count: %d"), remaining, savedCount));

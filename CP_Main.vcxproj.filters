@@ -331,6 +331,9 @@
     <ClCompile Include="src\ScrollHelper.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\AsyncClipPreview.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
     <ClCompile Include="src\SearchIndex.cpp">
       <Filter>src</Filter>
     </ClCompile>
@@ -860,6 +863,15 @@
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="src\ScrollHelper.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\AsyncClipPreview.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\SearchResultCache.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\CancelableSocket.h">
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="src\SearchIndex.h">

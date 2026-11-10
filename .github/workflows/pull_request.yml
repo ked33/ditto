@@ -30,5 +30,30 @@ jobs:
         shell: pwsh
         run: .\.github\scripts\Test-ClipboardSource.ps1
 
+      - name: Verify database, paging, and preview regressions
+        shell: pwsh
+        run: |
+          python -B tests/search_static_checks.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -B tests/database_optimization_regression.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -B tests/search_paging_regression.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -B tests/preview_regression.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Verify search cache and cancellable network helpers
+        shell: pwsh
+        run: .\.github\scripts\Test-WorkerUtilities.ps1
+
       - name: Build 64bit
         run: msbuild CP_Main_10.sln /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=${{ env.CI_PLATFORM_TOOLSET }}
+
+      - name: Verify full-text search with compiled ICU tokenizer
+        shell: pwsh
+        run: |
+          $env:DITTO_ICU_EXTENSION = (Resolve-Path .\Release64\ICU_Loader.dll).Path
+          python -B tests/search_sql_regression.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          python -B tests/search_filter_regression.py
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

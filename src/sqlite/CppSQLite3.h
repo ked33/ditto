@@ -32,6 +32,7 @@
 #include "sqlite3mc_amalgamation.h"
 #include <cstdio>
 #include <cstring>
+#include <mutex>
 
 #define CPPSQLITE_ERROR 1000
 
@@ -198,21 +199,26 @@ public:
     sqlite_int64 lastRowId();
 
     void interrupt() { if (mpDB) sqlite3_interrupt(mpDB); }
-    CString databasePath() const { return m_dbFile; }
+    CString databasePath() const
+    { std::lock_guard<std::recursive_mutex> lock(m_connectionMutex); return m_dbFile; }
     void setProgressHandler(int steps, int (*callback)(void*), void* context)
-    { sqlite3_progress_handler(mpDB, steps, callback, context); }
+    { std::lock_guard<std::recursive_mutex> lock(m_connectionMutex); sqlite3_progress_handler(mpDB, steps, callback, context); }
     void setBusyHandler(int (*callback)(void*, int), void* context)
-    { sqlite3_busy_handler(mpDB, callback, context); }
+    { std::lock_guard<std::recursive_mutex> lock(m_connectionMutex); sqlite3_busy_handler(mpDB, callback, context); }
 
     void setBusyTimeout(int nMillisecs);
 
     static const TCHAR* SQLiteVersion() { return _T(SQLITE_VERSION); }
 
-    bool IsDatabaseOpen() { return mpDB != NULL; }
+    bool IsDatabaseOpen()
+    { std::lock_guard<std::recursive_mutex> lock(m_connectionMutex); return mpDB != NULL; }
 
     bool DBEncrypted();
 
 private:
+
+    friend class CppSQLite3Transaction;
+    mutable std::recursive_mutex m_connectionMutex;
 
     CppSQLite3DB(const CppSQLite3DB& db);
     CppSQLite3DB& operator=(const CppSQLite3DB& db);
@@ -224,6 +230,26 @@ private:
     sqlite3* mpDB;
     int mnBusyTimeoutMs;
     CString m_dbFile;
+};
+
+// A savepoint composes with existing transactions. Holding the connection mutex
+// also excludes SQL issued through already prepared statements on other threads.
+class CppSQLite3Transaction
+{
+public:
+    explicit CppSQLite3Transaction(CppSQLite3DB& db);
+    ~CppSQLite3Transaction();
+    void commit();
+    bool isOutermost() const { return m_outermost; }
+
+private:
+    CppSQLite3Transaction(const CppSQLite3Transaction&) = delete;
+    CppSQLite3Transaction& operator=(const CppSQLite3Transaction&) = delete;
+    CppSQLite3DB& m_db;
+    std::unique_lock<std::recursive_mutex> m_connectionLock;
+    sqlite3_mutex* m_mutex;
+    bool m_active;
+    bool m_outermost;
 };
 
 #endif

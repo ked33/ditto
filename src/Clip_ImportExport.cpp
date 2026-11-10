@@ -103,7 +103,15 @@ bool CClip_ImportExport::ImportFromSqliteDB(CppSQLite3DB& db, bool bAddToDB, boo
 					if (bAddToDB)
 					{
 						MakeLatestOrder();
-						AddToDB(true);
+						if (AddToDB(true) == FALSE)
+						{
+							// Earlier clips were committed individually and still need to appear.
+							if (bRet)
+							{
+								theApp.RefreshView();
+							}
+							return false;
+						}
 						bRet = true;
 					}
 					else if (bPutOnClipboard)

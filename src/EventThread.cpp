@@ -7,6 +7,9 @@
 
 CEventThread::CEventThread(void)
 {
+	m_thread = NULL;
+	m_threadID = 0;
+	m_param = NULL;
 	m_hEvt = CreateEvent(NULL, FALSE, FALSE, NULL);
 	m_waitTimeout = INFINITE;
 	m_threadRunning = false;
@@ -25,6 +28,7 @@ CEventThread::~CEventThread(void)
 	{
 		CloseHandle(it->first);
 	}
+	CloseHandle(m_hEvt);
 }
 
 UINT CEventThread::EventThreadFnc(void* thisptr) 
@@ -148,52 +152,89 @@ bool CEventThread::RemoveEvent(int eventId)
 	return false;
 }
 
-void CEventThread::Start(void *param) 
+// Service synchronous SendMessage callbacks while joining a worker from the UI
+// thread. Posted input is deliberately left queued while objects are closing.
+static DWORD WaitForEventThread(HANDLE thread, DWORD timeout)
 {
-	if(m_threadRunning == false)
-	{
-		ResetEvent(m_hEvt);
-		m_exitThread = false;
-		m_param = param;
-		m_thread = (HANDLE)_beginthreadex(NULL, 0, EventThreadFnc, this, 0, &m_threadID);
+    const ULONGLONG start = GetTickCount64();
+    for (;;)
+    {
+        DWORD remaining = INFINITE;
+        if (timeout != INFINITE)
+        {
+            const ULONGLONG elapsed = GetTickCount64() - start;
+            if (elapsed >= timeout)
+                return WaitForSingleObject(thread, 0);
+            remaining = timeout - static_cast<DWORD>(elapsed);
+        }
+        const DWORD result = MsgWaitForMultipleObjects(1, &thread, FALSE, remaining, QS_SENDMESSAGE);
+        if (result != WAIT_OBJECT_0 + 1)
+            return result;
+        MSG message;
+        PeekMessage(&message, NULL, 0, 0, PM_NOREMOVE);
+    }
+}
 
-		// now wait until the thread is up and really running
-		WaitForSingleObject(m_hEvt, 1000);
-	}
-	else
-	{
-		UndoFireEvent(EXIT_EVENT);
-	}
+void CEventThread::Start(void *param)
+{
+    if (m_thread != NULL)
+    {
+        if (WaitForSingleObject(m_thread, 0) == WAIT_TIMEOUT)
+        {
+            if (!m_exitThread)
+                return;
+            // An idle worker can request its own exit just before work arrives.
+            // Finish that lifetime before assigning the new parameter or handle.
+            if (GetCurrentThreadId() == m_threadID)
+                return;
+            WaitForEventThread(m_thread, INFINITE);
+        }
+        CloseHandle(m_thread);
+        m_thread = NULL;
+    }
+    ResetEvent(m_hEvt);
+    UndoFireEvent(EXIT_EVENT);
+    m_exitThread = false;
+    m_threadRunning = true;
+    m_param = param;
+    m_thread = (HANDLE)_beginthreadex(NULL, 0, EventThreadFnc, this, 0, &m_threadID);
+    if (m_thread == NULL)
+    {
+        m_threadRunning = false;
+        Log(StrF(_T("Failed to start event thread: %s"), m_threadName));
+        return;
+    }
+    WaitForSingleObject(m_hEvt, 1000);
 }
 
 void CEventThread::WaitForThreadToExit(int waitTime)
 {
-	WaitForSingleObject(m_hEvt, waitTime);
+    if (m_thread != NULL && GetCurrentThreadId() != m_threadID)
+        WaitForEventThread(m_thread, static_cast<DWORD>(waitTime));
 }
 
-void CEventThread::Stop(int waitTime) 
+void CEventThread::Stop(int waitTime)
 {
-	Log(StrF(_T("Start of CEventThread::Stop(int waitTime) %d - Name: %s"), waitTime, m_threadName));
+    m_exitThread = true;
+    FireEvent(EXIT_EVENT);
+    if (m_thread == NULL || waitTime <= 0 || GetCurrentThreadId() == m_threadID)
+        return;
 
-	if(m_threadRunning)
-	{
-		m_exitThread = true;	
-		FireEvent(EXIT_EVENT);
-
-		if(waitTime > 0)
-		{
-			if (WAIT_OBJECT_0 != WaitForSingleObject(m_hEvt, waitTime))
-			{
-				Log(_T("Start of TerminateThread CEventThread::Stop(int waitTime) "));
-				TerminateThread(m_thread, 0);
-				Log(_T("End of TerminateThread CEventThread::Stop(int waitTime) "));
-				m_threadRunning = false;
-			}
-		}
-	}
-
-	Log(StrF(_T("End of CEventThread::Stop(int waitTime) %d - Name: %s"), waitTime, m_threadName));
-};
+    DWORD result = WaitForEventThread(m_thread, static_cast<DWORD>(waitTime));
+    if (result != WAIT_OBJECT_0)
+    {
+        // Killing a thread can strand a SQLite transaction/mutex or image
+        // allocation. Let cancellation unwind its stack before freeing owners.
+        Log(StrF(_T("Waiting for event thread to finish safely: %s"), m_threadName));
+        result = WaitForEventThread(m_thread, INFINITE);
+    }
+    if (result == WAIT_OBJECT_0)
+    {
+        CloseHandle(m_thread);
+        m_thread = NULL;
+        m_threadRunning = false;
+    }
+}
 
 void CEventThread::GetHandleVector(std::vector<HANDLE> &handles)
 {
@@ -236,7 +277,6 @@ void CEventThread::RunThread()
 	GetHandleVector(handles);
 
 	SetEvent(m_hEvt);
-	ResetEvent(m_hEvt);
 
 	while(m_exitThread == false)
 	{
@@ -272,7 +312,14 @@ void CEventThread::RunThread()
 			}
 
 			HANDLE firedHandle = handles[handleIndex];
-			const int eventId = m_eventMap[firedHandle];
+			int eventId;
+			{
+				ATL::CCritSecLock csLock(m_lock.m_sect);
+				auto found = m_eventMap.find(firedHandle);
+				if (found == m_eventMap.end())
+					continue;
+				eventId = found->second;
+			}
 			if(eventId == EXIT_EVENT)
 			{				
 				break;
@@ -291,8 +338,6 @@ void CEventThread::RunThread()
 	}
 
 	UndoFireEvent(EXIT_EVENT);
-
-	SetEvent(m_hEvt);
 
 	Log(StrF(_T("End of CEventThread::RunThread() Name: %s"), m_threadName));
 

@@ -165,7 +165,8 @@ BOOL CToolTipEx::Show(CPoint point)
 
 	CRect rect;
 
-	if(CGetSetOptions::GetSizeDescWindowToContent() == FALSE)
+	if (CGetSetOptions::GetSizeDescWindowToContent() == FALSE ||
+		(!m_html.IsEmpty() && m_csText.IsEmpty()))
 	{
 		rect.left = point.x;
 		rect.top = point.y;
@@ -242,7 +243,9 @@ BOOL CToolTipEx::Show(CPoint point)
 
 	if (m_csText.GetLength())
 	{
-		int wordCount = WordCount(m_csText);
+		if (m_previewWordCount < 0)
+			m_previewWordCount = WordCount(m_csText);
+		const int wordCount = m_previewWordCount;
 		const CString lengthLabel = theApp.m_Language.GetString(_T("DescriptionLength"), _T("Length:"));
 		const CString wordsLabel = theApp.m_Language.GetString(_T("DescriptionWords"), _T("Words:"));
 		m_clipData = StrF(_T("%s | %s %d | %s %d"), m_originalClipData.GetString(),
@@ -343,6 +346,9 @@ void CToolTipEx::GetWindowRectEx(LPRECT lpRect)
 
 BOOL CToolTipEx::Hide()
 {
+	if (::IsWindow(m_previewOwner))
+		::SendMessage(m_previewOwner, WM_CLIP_PREVIEW_CANCEL, 0, 0);
+	m_hasPreviewText = m_hasPreviewRichText = m_hasPreviewHtml = m_hasPreviewImage = false;
 	delete m_imageViewer.m_pGdiplusBitmap;
 	m_imageViewer.m_pGdiplusBitmap = NULL;
 
@@ -402,6 +408,8 @@ void CToolTipEx::SaveWindowSize()
 
 void CToolTipEx::PostNcDestroy()
 {
+	if (::IsWindow(m_previewOwner))
+		::SendMessage(m_previewOwner, WM_CLIP_PREVIEW_CANCEL, 1, 0);
 	CWnd::PostNcDestroy();
 
 	delete this;
@@ -749,6 +757,89 @@ BOOL CToolTipEx::SetLogFont(LPLOGFONT lpLogFont, BOOL bRedraw /*=TRUE*/)
     return TRUE;
 }
 
+void CToolTipEx::BeginPreview(HWND owner, const CString& description)
+{
+	m_previewOwner = owner;
+	m_hasPreviewText = false;
+	m_hasPreviewRichText = false;
+	m_hasPreviewHtml = false;
+	m_hasPreviewImage = false;
+	SetGdiplusBitmap(nullptr);
+	SetRTFText("");
+	SetHtmlText(_T(""));
+	SetToolTipText(description);
+	SetClipData(_T(""));
+	SetFolderPath(_T(""));
+}
+
+void CToolTipEx::SetPreviewFormats(const ClipPreviewResult& result)
+{
+	m_hasPreviewText = result.hasText;
+	m_hasPreviewRichText = result.hasRichText;
+	m_hasPreviewHtml = result.hasHtml;
+	m_hasPreviewImage = result.hasImage;
+}
+
+void CToolTipEx::ApplyPreview(ClipPreviewResult& result, CPoint point)
+{
+	SetPreviewFormats(result);
+	SetGdiplusBitmap(nullptr);
+	SetRTFText("");
+	SetHtmlText(_T(""));
+	SetToolTipText(_T(""));
+	switch (result.format)
+	{
+	case ClipPreviewFormat::Text:
+		SetToolTipText(result.text);
+		m_previewWordCount = result.textWordCount;
+		break;
+	case ClipPreviewFormat::RichText:
+		SetRTFText(result.richText);
+		// Reuse the rendered format for sizing and counts; no second BLOB read.
+		m_csText = m_RichEdit.GetText();
+		break;
+	case ClipPreviewFormat::Html:
+		SetHtmlText(result.html);
+		break;
+	case ClipPreviewFormat::Image:
+		SetGdiplusBitmap(result.image.release());
+		break;
+	default:
+		break;
+	}
+	Show(point);
+}
+
+bool CToolTipEx::HasPreviewFormat(ClipPreviewFormat format) const
+{
+	// The deletion dialog and command-line errors still populate this reusable
+	// window synchronously; only async owners have separate format metadata.
+	const bool asynchronous = ::IsWindow(m_previewOwner) != FALSE;
+	switch (format)
+	{
+	case ClipPreviewFormat::Text:
+		return asynchronous ? m_hasPreviewText : !m_csText.IsEmpty();
+	case ClipPreviewFormat::RichText:
+		return asynchronous ? m_hasPreviewRichText : !m_csRTF.IsEmpty();
+	case ClipPreviewFormat::Html:
+		return asynchronous ? m_hasPreviewHtml : !m_html.IsEmpty();
+	case ClipPreviewFormat::Image:
+		return asynchronous ? m_hasPreviewImage : m_imageViewer.m_pGdiplusBitmap != nullptr;
+	default:
+		return false;
+	}
+}
+
+bool CToolTipEx::RequestPreviewFormat(ClipPreviewFormat format)
+{
+	if (!::IsWindow(m_previewOwner))
+		return false;
+	const bool available = HasPreviewFormat(format);
+	if (available)
+		::SendMessage(m_previewOwner, WM_CLIP_PREVIEW_FORMAT, m_clipId, static_cast<LPARAM>(format));
+	return true;
+}
+
 void CToolTipEx::SetGdiplusBitmap(Gdiplus::Bitmap *gdiplusBitmap)
 {
 	delete m_imageViewer.m_pGdiplusBitmap;
@@ -826,6 +917,13 @@ BOOL CToolTipEx::IsCursorInToolTip()
 
 void CToolTipEx::SetHtmlText(const CString &html)
 {
+	if (html.IsEmpty())
+	{
+		m_html.Empty();
+		if (::IsWindow(m_browser.m_hWnd))
+			m_browser.DestroyWindow();
+		return;
+	}
 	//OutputDebugString(_T("SetHtmlText-") + html.Left(20) + "\r\n");
 
 	if (html.GetLength() > 0 &&
@@ -879,6 +977,7 @@ void CToolTipEx::SetRTFText(const CStringA &rtf)
 
 void CToolTipEx::SetToolTipText(const CString &csText)
 {
+	m_previewWordCount = -1;
 	//OutputDebugString(_T("SetRTF-") + csText.Left(20) + "\r\n");
 
     m_csText = csText;
@@ -1259,7 +1358,7 @@ void CToolTipEx::OnOptions()
 		{
 			cmSubMenu->CheckMenuItem(ID_FIRST_VIEWTEXT, MF_CHECKED);
 		}
-		if (m_csText.GetLength() <= 0)
+		if (!HasPreviewFormat(ClipPreviewFormat::Text))
 		{
 			cmSubMenu->EnableMenuItem(ID_FIRST_VIEWTEXT, MF_DISABLED);
 		}
@@ -1268,7 +1367,7 @@ void CToolTipEx::OnOptions()
 		{
 			cmSubMenu->CheckMenuItem(ID_FIRST_VIEWRTF, MF_CHECKED);
 		}
-		if (m_csRTF.GetLength() <= 0)
+		if (!HasPreviewFormat(ClipPreviewFormat::RichText))
 		{
 			cmSubMenu->EnableMenuItem(ID_FIRST_VIEWRTF, MF_DISABLED);
 		}
@@ -1277,7 +1376,7 @@ void CToolTipEx::OnOptions()
 		{
 			cmSubMenu->CheckMenuItem(ID_FIRST_VIEWHTML, MF_CHECKED);
 		}
-		if (m_html.GetLength() <= 0)
+		if (!HasPreviewFormat(ClipPreviewFormat::Html))
 		{
 			cmSubMenu->EnableMenuItem(ID_FIRST_VIEWHTML, MF_DISABLED);
 		}
@@ -1286,7 +1385,7 @@ void CToolTipEx::OnOptions()
 		{
 			cmSubMenu->CheckMenuItem(ID_FIRST_VIEWASIMAGE, MF_CHECKED);
 		}
-		if (m_imageViewer.m_pGdiplusBitmap == NULL)
+		if (!HasPreviewFormat(ClipPreviewFormat::Image))
 		{
 			cmSubMenu->EnableMenuItem(ID_FIRST_VIEWASIMAGE, MF_DISABLED);
 		}
@@ -1620,6 +1719,8 @@ LRESULT CToolTipEx::OnRefreshFooter(WPARAM wParam, LPARAM lParam)
 
 void CToolTipEx::OnFirstViewtext()
 {
+	if (RequestPreviewFormat(ClipPreviewFormat::Text))
+		return;
 	if (::IsWindow(m_browser.m_hWnd))
 	{
 		m_browser.ShowWindow(SW_HIDE);
@@ -1641,6 +1742,8 @@ void CToolTipEx::OnFirstViewtext()
 
 void CToolTipEx::OnFirstViewrtf()
 {
+	if (RequestPreviewFormat(ClipPreviewFormat::RichText))
+		return;
 	if (::IsWindow(m_browser.m_hWnd))
 	{
 		m_browser.ShowWindow(SW_HIDE);
@@ -1666,6 +1769,8 @@ void CToolTipEx::OnFirstViewrtf()
 
 void CToolTipEx::OnFirstViewhtml()
 {
+	if (RequestPreviewFormat(ClipPreviewFormat::Html))
+		return;
 	m_imageViewer.ShowWindow(SW_HIDE);
 	m_RichEdit.ShowWindow(SW_HIDE);
 
@@ -1682,6 +1787,8 @@ void CToolTipEx::OnFirstViewhtml()
 
 void CToolTipEx::OnFirstViewImage()
 {
+	if (RequestPreviewFormat(ClipPreviewFormat::Image))
+		return;
 	m_RichEdit.ShowWindow(SW_HIDE);
 	if (::IsWindow(m_browser.m_hWnd))
 	{
@@ -1703,7 +1810,7 @@ void CToolTipEx::OnFirstViewImage()
 
 void CToolTipEx::OnUpdateFirstViewtext(CCmdUI* pCmdUI)
 {
-	if (m_csText.IsEmpty())
+	if (!HasPreviewFormat(ClipPreviewFormat::Text))
 	{
 		pCmdUI->Enable(0);
 	}
@@ -1712,7 +1819,7 @@ void CToolTipEx::OnUpdateFirstViewtext(CCmdUI* pCmdUI)
 
 void CToolTipEx::OnUpdateFirstViewrtf(CCmdUI* pCmdUI)
 {
-	if (m_csRTF.IsEmpty())
+	if (!HasPreviewFormat(ClipPreviewFormat::RichText))
 	{
 		pCmdUI->Enable(0);
 	}
@@ -1721,7 +1828,7 @@ void CToolTipEx::OnUpdateFirstViewrtf(CCmdUI* pCmdUI)
 
 void CToolTipEx::OnUpdateFirstViewhtml(CCmdUI* pCmdUI)
 {
-	if (m_html.IsEmpty())
+	if (!HasPreviewFormat(ClipPreviewFormat::Html))
 	{
 		pCmdUI->Enable(0);
 	}

@@ -11,6 +11,7 @@
 
 #include "DittoPopupWindow.h"
 #include "sqlite/CppSQLite3.h"
+#include <functional>
 
 #define DEFAULT_DB_NAME "Ditto.db"
 #define ERROR_OPENING_DATABASE	2
@@ -27,7 +28,7 @@ BOOL CreateDB(CString csPath);
 
 BOOL CompactDatabase();
 BOOL RepairDatabase();
-BOOL RemoveOldEntries(bool checkIdleTime);
+BOOL RemoveOldEntries(bool checkIdleTime, const std::function<bool()>& shouldYield = std::function<bool()>(), bool* moreWork = nullptr);
 BOOL DeleteNonUsedClips(bool fromAppWindow);
 
 BOOL EnsureDirectory(CString csPath);

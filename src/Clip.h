@@ -173,7 +173,7 @@ public:
 	int LoadFromClipboard(CClipTypes* pClipTypes, bool checkClipboardIgnore = true, CString activeApp = _T(""), CString activeAppTitle = _T(""), CString sourceProcess = _T(""), const ClipboardSourceContext& sourceContext = ClipboardSourceContext());
 	bool SetDescFromText(HGLOBAL hgData, bool unicode);
 	bool SetDescFromType();
-	bool AddToDB(bool bCheckForDuplicates = true);
+	bool AddToDB(bool bCheckForDuplicates = true, bool latestOrder = false);
 	bool ModifyMainTable();
 	bool ModifyDescription();	
 	void MakeLatestOrder();

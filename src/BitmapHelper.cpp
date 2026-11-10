@@ -40,7 +40,7 @@ int CBitmapHelper::GetCBitmapHeight(const CBitmap& cbm)
 	return bm.bmHeight;
 }
 
-BOOL CBitmapHelper::GetCBitmap(void* pClip2, CDC* pDC, CBitmap* pBitMap, int nMaxHeight)
+BOOL CBitmapHelper::GetCBitmap(void* pClip2, CDC* pDC, CBitmap* pBitMap, int nMaxHeight, int nMaxWidth)
 {
 	CClipFormat* pClip = (CClipFormat*)pClip2;
 
@@ -66,8 +66,11 @@ BOOL CBitmapHelper::GetCBitmap(void* pClip2, CDC* pDC, CBitmap* pBitMap, int nMa
 		return false;
 	}
 
-	const int nHeight = min(nMaxHeight, (int)gdipHeight);
-	const int nWidth = (nHeight * gdipWidth) / gdipHeight;
+    double scale = min(1.0, static_cast<double>(nMaxHeight) / gdipHeight);
+    if (nMaxWidth > 0)
+        scale = min(scale, static_cast<double>(nMaxWidth) / gdipWidth);
+    const int nHeight = max(1, static_cast<int>(gdipHeight * scale));
+    const int nWidth = max(1, static_cast<int>(gdipWidth * scale));
 
 	//do the resize
 	pBitMap->CreateCompatibleBitmap(pDC, nWidth, nHeight);

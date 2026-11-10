@@ -17,38 +17,32 @@ CAutoSendToClientThread::CAutoSendToClientThread(void)
 
 CAutoSendToClientThread::~CAutoSendToClientThread(void)
 {
+	Stop();
 }
 
 void CAutoSendToClientThread::FireSendToClient(CClipList *pClipList)
 {
-	Start();
-
-	ATL::CCritSecLock csLock(m_cs.m_sect);
-	if(m_threadRunning)
+	// Publish work before checking the worker lifetime. The timeout uses the
+	// same lock, so it cannot decide to exit between Start and queue insertion.
 	{
-		Log(_T("Adding clip to send to client in thread"));
-
+		ATL::CCritSecLock csLock(m_cs.m_sect);
 		POSITION pos = pClipList->GetHeadPosition();
-		while(pos)
-		{
-			CClip *pClip = pClipList->GetNext(pos);
-		
-			m_saveClips.AddTail(pClip);
-		}
-
+		while (pos)
+			m_saveClips.AddTail(pClipList->GetNext(pos));
 		pClipList->RemoveAll();
-		
+	}
+	Start();
+	if (IsRunning())
 		FireEvent(SEND_TO_CLIENTS);
-	}
 	else
-	{
 		Log(_T("Error creating thread to send to clients"));
-	}
 }
 
 void CAutoSendToClientThread::OnTimeOut(void *param)
 {
-	Stop(-1);
+	ATL::CCritSecLock csLock(m_cs.m_sect);
+	if (m_saveClips.IsEmpty())
+		Stop(-1);
 }
 
 void CAutoSendToClientThread::OnEvent(int eventId, void *param)
@@ -103,14 +97,17 @@ bool CAutoSendToClientThread::SendToClient(CClipList *pClipList)
 
 	LogSendRecieveInfo(StrF(_T("Start of Send ClientThread Count - %d"), lCount));
 
-	for(int nClient = 0; nClient < MAX_SEND_CLIENTS; nClient++)
+	for(int nClient = 0; nClient < MAX_SEND_CLIENTS && !IsCancelled(); nClient++)
 	{
 		if(CGetSetOptions::m_SendClients[nClient].bSendAll && 
 			CGetSetOptions::m_SendClients[nClient].csIP.GetLength() > 0)
 		{
 			CClient client;
+			client.SetCancellationFlag(&m_exitThread);
 			if(client.OpenConnection(CGetSetOptions::m_SendClients[nClient].csIP) == FALSE)
 			{
+				if (IsCancelled())
+					return false;
 				LogSendRecieveInfo(StrF(_T("ERROR opening connection to %s"), CGetSetOptions::m_SendClients[nClient].csIP));
 
 				if(CGetSetOptions::m_SendClients[nClient].bShownFirstError == FALSE)
@@ -132,7 +129,7 @@ bool CAutoSendToClientThread::SendToClient(CClipList *pClipList)
 			CClip* pClip;
 			POSITION pos;
 			pos = pClipList->GetHeadPosition();
-			while(pos)
+			while(pos && !IsCancelled())
 			{
 				pClip = pClipList->GetNext(pos);
 				if(pClip == NULL)
@@ -146,6 +143,8 @@ bool CAutoSendToClientThread::SendToClient(CClipList *pClipList)
 
 				if(client.SendItem(pClip, false) == FALSE)
 				{
+					if (IsCancelled())
+						return false;
 					CString cs;
 					cs.Format(_T("Error sending clip to %s"), CGetSetOptions::m_SendClients[nClient].csIP);
 					::SendMessage(theApp.m_MainhWnd, WM_SEND_RECIEVE_ERROR, (WPARAM)cs.GetBuffer(cs.GetLength()), 0);

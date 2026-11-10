@@ -24,6 +24,7 @@ CQPasteWndThread::CQPasteWndThread(void)
 CQPasteWndThread::~CQPasteWndThread(void)
 {
     CancelSearch();
+    CancelExtraData();
     Stop();
     CloseHandle(m_SearchingEvent);
 }
@@ -85,7 +86,7 @@ void CQPasteWndThread::SetSearchSql(const CString& sql, const CString& countSql,
     m_request.databasePath = databasePath;
     m_request.generation = m_generation.load();
     m_request.busyTimeout = CGetSetOptions::GetDbTimeout();
-    m_request.countNeeded = true;
+    m_request.countNeeded = !countSql.IsEmpty();
     m_countGeneration = 0;
 }
 
@@ -103,7 +104,11 @@ void CQPasteWndThread::AcknowledgeListCount(UINT_PTR generation)
 {
     ATL::CCritSecLock lock(m_requestLock.m_sect);
     if (IsCurrentSearch(generation))
+    {
         m_request.countNeeded = false;
+        m_countGeneration = 0;
+        SetEvent(m_SearchingEvent);
+    }
 }
 
 void CQPasteWndThread::ResumeSearch()
@@ -116,7 +121,19 @@ void CQPasteWndThread::ResumeSearch()
     {
         m_countGeneration = m_request.generation;
         ResetEvent(m_SearchingEvent);
-        FireSetListCount();
+        if (m_countOnly)
+            FireSetListCount();
+    }
+}
+
+void CQPasteWndThread::FireSetListCount()
+{
+    ATL::CCritSecLock lock(m_requestLock.m_sect);
+    if (!m_request.countSql.IsEmpty() && IsCurrentSearch(m_request.generation))
+    {
+        m_countGeneration = m_request.generation;
+        ResetEvent(m_SearchingEvent);
+        FireEvent(DO_SET_LIST_COUNT);
     }
 }
 
@@ -170,7 +187,7 @@ void CQPasteWndThread::EndSearchConnection()
 int CQPasteWndThread::SearchProgress(void* context)
 {
     auto thread = static_cast<CQPasteWndThread*>(context);
-    return !thread->IsCurrentSearch(thread->m_runningGeneration);
+    return thread->IsCancelled() || !thread->IsCurrentSearch(thread->m_runningGeneration);
 }
 
 int CQPasteWndThread::SearchBusy(void* context, int attempts)
@@ -199,10 +216,8 @@ void CQPasteWndThread::OnSetListCount(void *param)
             return;
     }
 
-    // Visible pages take precedence over an exact total.
-    OnLoadItems(param);
-    if (!IsCurrentSearch(request.generation))
-        return;
+    // This runs on the separate count worker/connection. Page requests can
+    // continue while a slow regex or a common search term is being counted.
 
     static CEvent updateTimeEvent(TRUE, TRUE, _T("Ditto_Update_Clip_Time"), NULL);
     const DWORD waitStart = GetTickCount();
@@ -264,7 +279,7 @@ void CQPasteWndThread::OnLoadItems(void *param)
             }
             const bool firstLoad = range.x == -1;
             const int firstRow = max(range.x, 0);
-            const int rowCount = max(range.y - range.x, 0);
+            const int rowCount = min(max(range.y - firstRow, 1), 128);
             CString sql = request.sql;
             sql += StrF(_T(" LIMIT %d OFFSET %d"), rowCount, firstRow);
 
@@ -284,14 +299,12 @@ void CQPasteWndThread::OnLoadItems(void *param)
                 ATL::CCritSecLock lock(pasteWnd->m_CritSection.m_sect);
                 if (!IsCurrentSearch(request.generation))
                     break;
-                if (!rows.empty())
-                {
-                    const size_t required = static_cast<size_t>(firstRow) + rows.size();
-                    if (pasteWnd->m_listItems.size() < required)
-                        pasteWnd->m_listItems.resize(required);
-                    std::copy(rows.begin(), rows.end(), pasteWnd->m_listItems.begin() + firstRow);
-                }
-                pasteWnd->m_loadItems.pop_front();
+                for (size_t i = 0; i < rows.size(); ++i)
+                    pasteWnd->m_listItems.put(firstRow + static_cast<int>(i), rows[i]);
+                if (static_cast<int>(rows.size()) == rowCount && firstRow + rowCount < range.y)
+                    pasteWnd->m_loadItems.front().x = firstRow + rowCount;
+                else
+                    pasteWnd->m_loadItems.pop_front();
             }
             ::PostMessage(pasteWnd->m_hWnd, NM_SEARCH_RESULTS_READY,
                 request.generation, firstLoad ? 1 : 0);
@@ -301,7 +314,11 @@ void CQPasteWndThread::OnLoadItems(void *param)
                 if (IsCurrentSearch(request.generation))
                 {
                     m_countGeneration = request.generation;
-                    FireSetListCount();
+                    if (static_cast<int>(rows.size()) < rowCount)
+                        ::PostMessage(pasteWnd->m_hWnd, NM_SET_LIST_COUNT, rows.size(),
+                            static_cast<LPARAM>(request.generation));
+                    else
+                        pasteWnd->m_countThread.FireSetListCount();
                 }
             }
         }
@@ -316,194 +333,183 @@ void CQPasteWndThread::OnLoadItems(void *param)
 }
 
 
-void ReduceMapItems(CF_DibTypeMap &mapItem, CCriticalSection &critSection, CString mapName)
+namespace
 {
-	ATL::CCritSecLock csLock(critSection.m_sect);
+    const SIZE_T ImageCacheBudget = 32 * 1024 * 1024;
+    const SIZE_T RtfCacheBudget = 8 * 1024 * 1024;
 
-	int maxSize = 50;
-	int reduceToSize = 30;
-
-	if (mapItem.size() > maxSize)
-	{
-		//create a vector so we can sort and keep the last x number of events
-		vector<INT64> counterArray;
-		for (CF_DibTypeMap::iterator iterDib = mapItem.begin(); iterDib != mapItem.end(); iterDib++)
-		{
-			counterArray.push_back(iterDib->second.m_counter);
-		}
-		std::sort(counterArray.begin(), counterArray.end());
-		counterArray.erase(counterArray.begin(), counterArray.end() - reduceToSize);
-
-		//remove the oldest x number if bitmaps
-		for (CF_DibTypeMap::iterator iterDib = mapItem.begin(); iterDib != mapItem.end();)
-		{
-			if (std::binary_search(counterArray.begin(), counterArray.end(), iterDib->second.m_counter) == false)
-			{
-				Log(StrF(_T("reduced size of %s cache, Id: %d, Row: %d"), mapName, iterDib->second.m_parentId, iterDib->second.m_clipRow));
-
-				mapItem.erase(iterDib++);
-			}
-			else
-			{
-				++iterDib;
-			}
-		}
-
-		Log(StrF(_T("reduced size of %s cache, count: %d"), mapName, mapItem.size()));
-	}
-}
-
-void CQPasteWndThread::OnLoadExtraData(void *param)
-{
-    ResetEvent(m_SearchingEvent);
-
-    CQPasteWnd *pasteWnd = (CQPasteWnd*)param;
-
-    Log(_T("Start of load extra data, Bitmaps/rtf"));
-
-    std::list<CClipFormatQListCtrl> localFormats;
-	{
-		ATL::CCritSecLock csLock(pasteWnd->m_CritSection.m_sect);
-
-		for (std::list<CClipFormatQListCtrl>::iterator it = pasteWnd->m_ExtraDataLoadItems.begin(); it != pasteWnd->m_ExtraDataLoadItems.end(); it++)
-		{
-			localFormats.push_back(*it);
-		}
-	    pasteWnd->m_ExtraDataLoadItems.clear();
-	}
-	
-	for (std::list<CClipFormatQListCtrl>::iterator it = localFormats.begin(); it != localFormats.end(); it++)
+    void TrimFormatCache(CF_DibTypeMap& cache, SIZE_T budget)
     {
-		bool loadClip = true;
-
-		if (it->m_cfType == CF_DIB)
-		{
-			ATL::CCritSecLock csLock(pasteWnd->m_CritSection.m_sect);
-
-			CF_DibTypeMap::iterator iterDib = pasteWnd->m_cf_dibCache.find(it->m_parentId);
-			if (iterDib != pasteWnd->m_cf_dibCache.end())
-			{
-				loadClip = false;
-			}
-			else
-			{
-				CF_NoDibTypeMap::iterator iterNoDib = pasteWnd->m_cf_NO_dibCache.find(it->m_parentId);
-				if (iterNoDib != pasteWnd->m_cf_NO_dibCache.end())
-				{
-					loadClip = false;
-				}
-			}
-		}
-		else if (it->m_cfType == theApp.m_RTFFormat)
-		{
-			ATL::CCritSecLock csLock(pasteWnd->m_CritSection.m_sect);
-
-			CF_DibTypeMap::iterator iterDib = pasteWnd->m_cf_rtfCache.find(it->m_parentId);
-			if (iterDib != pasteWnd->m_cf_rtfCache.end())
-			{
-				loadClip = false;
-			}
-			else
-			{
-				CF_NoDibTypeMap::iterator iterNoRtf = pasteWnd->m_cf_NO_rtfCache.find(it->m_parentId);
-				if (iterNoRtf != pasteWnd->m_cf_NO_rtfCache.end())
-				{
-					loadClip = false;
-				}
-			}
-		}
-
-		if (loadClip)
-		{
-			DWORD startLoadClipData = GetTickCount();
-
-			BOOL foundClipData = theApp.GetClipData(it->m_parentId, *it);
-			if (foundClipData == false &&
-				it->m_cfType == CF_DIB)
-			{
-				it->Free();
-				it->m_cfType = theApp.m_PNG_Format;
-
-				foundClipData = theApp.GetClipData(it->m_parentId, *it);
-			}
-
-			if (foundClipData)
-			{
-				DWORD timeTook = GetTickCount() - startLoadClipData;
-				if (timeTook > 20)
-				{
-					Log(StrF(_T("GetClipData for clip %d, took: %d"), it->m_parentId, timeTook));
-				}
-
-				if (it->m_cfType == CF_DIB ||
-					it->m_cfType == theApp.m_PNG_Format)
-				{
-					DWORD startConvertImage = GetTickCount();
-
-					HDC dc = GetDC(NULL);
-
-					it->GetDibFittingToHeight(CDC::FromHandle(dc), m_rowHeight);
-
-					ReleaseDC(NULL, dc);
-
-					DWORD timeTook = GetTickCount() - startConvertImage;
-					if (timeTook > 20)
-					{
-						Log(StrF(_T("GetDibFittingToHeight for clip %d, took: %d"), it->m_parentId, GetTickCount() - startConvertImage));
-					}
-
-					{
-						ATL::CCritSecLock csLock(pasteWnd->m_CritSection.m_sect);
-
-						pasteWnd->m_cf_dibCache[it->m_parentId] = *it;
-						//the cache now owns the format data, set it to delete the data in the destructor
-						pasteWnd->m_cf_dibCache[it->m_parentId].m_autoDeleteData = true;
-
-						Log(StrF(_T("Loaded, extra data for clipId: %d, Row: %d image cache count: %d"), it->m_parentId, it->m_clipRow, pasteWnd->m_cf_dibCache.size()));
-					}
-				}
-				else if (it->m_cfType == theApp.m_RTFFormat)
-				{
-					ATL::CCritSecLock csLock(pasteWnd->m_CritSection.m_sect);
-
-					pasteWnd->m_cf_rtfCache[it->m_parentId] = *it;
-					it->m_autoDeleteData = false;
-					//the cache now owns the format data, set it to delete the data in the destructor
-					pasteWnd->m_cf_rtfCache[it->m_parentId].m_autoDeleteData = true;
-
-					Log(StrF(_T("Loaded, extra data for clip %d, rtf cache count: %d"), it->m_parentId, pasteWnd->m_cf_rtfCache.size()));
-				}
-
-				::PostMessage(pasteWnd->m_hWnd, NM_REFRESH_ROW, it->m_parentId, it->m_clipRow);
-			}
-			else
-			{
-				ATL::CCritSecLock csLock(pasteWnd->m_CritSection.m_sect);
-
-				if (it->m_cfType == CF_DIB ||
-					it->m_cfType == theApp.m_PNG_Format)
-				{
-					pasteWnd->m_cf_NO_dibCache[it->m_parentId] = true;
-				}
-				else if (it->m_cfType == theApp.m_RTFFormat)
-				{
-					pasteWnd->m_cf_NO_rtfCache[it->m_parentId] = true;
-				}
-			}
-		}
-
-		if (it->m_cfType == CF_DIB)
-		{
-			ReduceMapItems(pasteWnd->m_cf_dibCache, pasteWnd->m_CritSection, _T("image"));
-		}
-		else if (it->m_cfType == theApp.m_RTFFormat)
-		{
-			ReduceMapItems(pasteWnd->m_cf_rtfCache, pasteWnd->m_CritSection, _T("rtf"));
-		}
+        SIZE_T bytes = 0;
+        for (const auto& item : cache)
+            bytes += item.second.m_hgData ? GlobalSize(item.second.m_hgData) : 0;
+        const size_t targetCount = cache.size() > 50 ? 30 : 50;
+        while (!cache.empty() && (cache.size() > targetCount || bytes > budget))
+        {
+            auto oldest = cache.begin();
+            for (auto item = cache.begin(); item != cache.end(); ++item)
+                if (item->second.m_counter < oldest->second.m_counter)
+                    oldest = item;
+            bytes -= oldest->second.m_hgData ? GlobalSize(oldest->second.m_hgData) : 0;
+            cache.erase(oldest);
+        }
     }
 
-    SetEvent(m_SearchingEvent);
-    Log(_T("End of load extra data, Bitmaps/rtf"));
+    bool ReadExtraFormat(CppSQLite3DB& db, CClipFormatQListCtrl& format)
+    {
+        CppSQLite3Statement statement = db.compileStatement(
+            _T("SELECT ooData FROM Data WHERE lParentID=? AND strClipBoardFormat=? LIMIT 1"));
+        statement.bind(1, format.m_parentId);
+        statement.bind(2, GetFormatName(format.m_cfType));
+        CppSQLite3Query query = statement.execQuery();
+        if (query.eof())
+            return false;
+        int length = 0;
+        const unsigned char* data = query.getBlobField(0, length);
+        if (data == nullptr || length <= 0)
+            return false;
+        format.m_hgData = NewGlobal(length);
+        if (format.m_hgData == nullptr)
+            return false;
+        void* target = GlobalLock(format.m_hgData);
+        if (target == nullptr)
+        {
+            format.Free();
+            return false;
+        }
+        memcpy(target, data, static_cast<size_t>(length));
+        GlobalUnlock(format.m_hgData);
+        return true;
+    }
+}
+
+void CQPasteWndThread::TrimExtraDataCache(CQPasteWnd* pasteWnd)
+{
+    // Called only on the UI thread: DrawItem can safely use the cached format
+    // pointer until it returns, without a worker evicting it concurrently.
+    ATL::CCritSecLock lock(pasteWnd->m_CritSection.m_sect);
+    TrimFormatCache(pasteWnd->m_cf_dibCache, ImageCacheBudget);
+    TrimFormatCache(pasteWnd->m_cf_rtfCache, RtfCacheBudget);
+    while (pasteWnd->m_cf_NO_dibCache.size() > 2048)
+        pasteWnd->m_cf_NO_dibCache.erase(pasteWnd->m_cf_NO_dibCache.begin());
+    while (pasteWnd->m_cf_NO_rtfCache.size() > 2048)
+        pasteWnd->m_cf_NO_rtfCache.erase(pasteWnd->m_cf_NO_rtfCache.begin());
+}
+
+void CQPasteWndThread::OnLoadExtraData(void* param)
+{
+    auto pasteWnd = static_cast<CQPasteWnd*>(param);
+    const UINT_PTR generation = ExtraDataGeneration();
+    CString databasePath;
+    {
+        ATL::CCritSecLock lock(pasteWnd->m_CritSection.m_sect);
+        databasePath = pasteWnd->m_listDatabasePath;
+    }
+    if (databasePath.IsEmpty())
+        return;
+    struct ExtraContext
+    {
+        CQPasteWndThread* worker;
+        UINT_PTR generation;
+        DWORD busyTimeout;
+    } context{ this, generation, CGetSetOptions::GetDbTimeout() };
+    auto cancelled = [&]() { return IsCancelled() || generation != ExtraDataGeneration(); };
+    auto currentRow = [&](const CClipFormatQListCtrl& format)
+    {
+        ATL::CCritSecLock lock(pasteWnd->m_CritSection.m_sect);
+        return !cancelled() && format.m_generation == generation &&
+            format.m_clipRow >= pasteWnd->m_visibleFirstRow &&
+            format.m_clipRow <= pasteWnd->m_visibleLastRow &&
+            pasteWnd->m_listItems.contains(format.m_clipRow) &&
+            pasteWnd->m_listItems[format.m_clipRow].m_lID == format.m_parentId;
+    };
+    try
+    {
+        CppSQLite3DB db;
+        db.open(databasePath, true);
+        db.setProgressHandler(1000, [](void* value) -> int
+        {
+            const auto query = static_cast<ExtraContext*>(value);
+            return query->worker->IsCancelled() ||
+                query->generation != query->worker->ExtraDataGeneration();
+        }, &context);
+        db.setBusyHandler([](void* value, int attempts) -> int
+        {
+            const auto query = static_cast<ExtraContext*>(value);
+            if (query->worker->IsCancelled() ||
+                query->generation != query->worker->ExtraDataGeneration() ||
+                static_cast<ULONGLONG>(attempts) * 10 >= query->busyTimeout)
+                return 0;
+            Sleep(10);
+            return 1;
+        }, &context);
+        while (!cancelled())
+        {
+            // Limit decoded data queued for the UI even while a dialog is busy.
+            while (m_pendingExtraResults.load() >= 2 && !cancelled())
+                Sleep(10);
+            if (cancelled())
+                break;
+            CClipFormatQListCtrl format;
+            {
+                ATL::CCritSecLock lock(pasteWnd->m_CritSection.m_sect);
+                if (pasteWnd->m_ExtraDataLoadItems.empty())
+                    break;
+                format = pasteWnd->m_ExtraDataLoadItems.front();
+                pasteWnd->m_ExtraDataLoadItems.pop_front();
+                const bool image = format.m_cfType == CF_DIB;
+                const auto& cache = image ? pasteWnd->m_cf_dibCache : pasteWnd->m_cf_rtfCache;
+                const auto& absent = image ? pasteWnd->m_cf_NO_dibCache : pasteWnd->m_cf_NO_rtfCache;
+                if (cache.find(format.m_parentId) != cache.end() || absent.find(format.m_parentId) != absent.end())
+                    continue;
+            }
+            if (!currentRow(format))
+                continue;
+            const bool image = format.m_cfType == CF_DIB;
+            bool found = ReadExtraFormat(db, format);
+            if (!found && image && !cancelled())
+            {
+                format.m_cfType = theApp.m_PNG_Format;
+                found = ReadExtraFormat(db, format);
+            }
+            if (!currentRow(format))
+                continue;
+            if (found && image)
+            {
+                HDC dc = GetDC(nullptr);
+                if (dc != nullptr)
+                {
+                    format.GetDibFittingToHeight(CDC::FromHandle(dc), m_rowHeight.load(), m_maxImageWidth.load());
+                    ReleaseDC(nullptr, dc);
+                }
+                else
+                    format.Free();
+                format.m_autoDeleteData = true;
+            }
+            // An unusually large rich-text preview falls back to the normal
+            // description; its full saved data and full preview are untouched.
+            const SIZE_T budget = image ? ImageCacheBudget : RtfCacheBudget;
+            if (format.m_hgData != nullptr && GlobalSize(format.m_hgData) > budget)
+                format.Free();
+            if (!currentRow(format))
+                continue;
+            auto result = new CClipFormatQListCtrl(format);
+            result->m_autoDeleteData = true;
+            format.m_autoDeleteData = false;
+            ++m_pendingExtraResults;
+            if (!::PostMessage(pasteWnd->m_hWnd, NM_EXTRA_DATA_READY,
+                reinterpret_cast<WPARAM>(result), 0))
+            {
+                --m_pendingExtraResults;
+                delete result;
+            }
+        }
+    }
+    catch (CppSQLite3Exception& e)
+    {
+        if (!cancelled() && e.errorCode() != SQLITE_INTERRUPT)
+            Log(StrF(_T("Loading thumbnail/RTF failed, SQLite code: %d"), e.errorCode()));
+    }
 }
 
 void CQPasteWndThread::OnLoadAccelerators(void *param)

@@ -761,6 +761,7 @@ void sqlite_regexp(sqlite3_context* context, int argc, sqlite3_value** values)
 
 bool CppSQLite3DB::DBEncrypted()
 {
+	std::lock_guard<std::recursive_mutex> connectionLock(m_connectionMutex);
 	bool encrypted = false;
 	CFile file;
 	CFileException ex;
@@ -786,6 +787,9 @@ bool CppSQLite3DB::DBEncrypted()
 
 void CppSQLite3DB::open(const TCHAR* szFile, bool readOnly)
 {
+	std::lock_guard<std::recursive_mutex> connectionLock(m_connectionMutex);
+	if (mpDB != nullptr)
+		throw CppSQLite3Exception(CPPSQLITE_ERROR, _T("Database connection is already open"), DONT_DELETE_MSG);
 	int nRet;
 	if (readOnly)
 	{
@@ -827,6 +831,7 @@ void CppSQLite3DB::open(const TCHAR* szFile, bool readOnly)
 
 void CppSQLite3DB::SetRegexCaseInsensitive(bool insensitive)
 {
+	std::lock_guard<std::recursive_mutex> connectionLock(m_connectionMutex);
 	auto h = ::LoadLibrary(_T("ICU_Loader.dll"));
 	if (h != NULL)
 	{
@@ -851,6 +856,7 @@ void CppSQLite3DB::SetRegexCaseInsensitive(bool insensitive)
 
 bool CppSQLite3DB::close()
 {
+	std::lock_guard<std::recursive_mutex> connectionLock(m_connectionMutex);
 	bool bRet = true;
 	if (mpDB)
 	{
@@ -862,7 +868,10 @@ bool CppSQLite3DB::close()
 			ASSERT(!"Error closing sqlite db");
 			bRet = false;
 		}
-		mpDB = 0;
+		else
+		{
+			mpDB = 0;
+		}
 	}
 
 	return bRet;
@@ -871,6 +880,7 @@ bool CppSQLite3DB::close()
 
 CppSQLite3Statement CppSQLite3DB::compileStatement(const TCHAR* szSQL)
 {
+	std::lock_guard<std::recursive_mutex> connectionLock(m_connectionMutex);
 	checkDB();
 
 	sqlite3_stmt* pVM = compile(szSQL);
@@ -904,6 +914,7 @@ int CppSQLite3DB::execDMLEx(LPCTSTR szSQL,...)
 
 int CppSQLite3DB::execDML(const TCHAR* szSQL)
 {
+	std::lock_guard<std::recursive_mutex> connectionLock(m_connectionMutex);
 	checkDB();
 
 	sqlite3_stmt* pVM = compile(szSQL);
@@ -941,6 +952,7 @@ CppSQLite3Query CppSQLite3DB::execQueryEx(LPCTSTR szSQL,...)
 
 CppSQLite3Query CppSQLite3DB::execQuery(const TCHAR* szSQL)
 {
+	std::lock_guard<std::recursive_mutex> connectionLock(m_connectionMutex);
 	checkDB();
 
 	sqlite3_stmt* pVM = compile(szSQL);
@@ -981,6 +993,7 @@ int CppSQLite3DB::execScalarEx(LPCTSTR szSQL,...)
 
 int CppSQLite3DB::execScalar(const TCHAR* szSQL)
 {
+	std::lock_guard<std::recursive_mutex> connectionLock(m_connectionMutex);
 	CppSQLite3Query q = execQuery(szSQL);
 
 	if (q.eof() || q.numFields() < 1)
@@ -994,12 +1007,14 @@ int CppSQLite3DB::execScalar(const TCHAR* szSQL)
 
 sqlite_int64 CppSQLite3DB::lastRowId()
 {
+	std::lock_guard<std::recursive_mutex> connectionLock(m_connectionMutex);
 	return sqlite3_last_insert_rowid(mpDB);
 }
 
 
 void CppSQLite3DB::setBusyTimeout(int nMillisecs)
 {
+	std::lock_guard<std::recursive_mutex> connectionLock(m_connectionMutex);
 	mnBusyTimeoutMs = nMillisecs;
 	sqlite3_busy_timeout(mpDB, mnBusyTimeoutMs);
 }
@@ -1228,4 +1243,56 @@ int sqlite3_decode_binary(const unsigned char *in, unsigned char *out){
     out[i++] = (c + e)&0xff;
   }
   return i;
+}
+
+
+CppSQLite3Transaction::CppSQLite3Transaction(CppSQLite3DB& db)
+    : m_db(db), m_connectionLock(db.m_connectionMutex), m_mutex(nullptr),
+      m_active(false), m_outermost(false)
+{
+    db.checkDB();
+    m_mutex = sqlite3_db_mutex(db.mpDB);
+    if (m_mutex == nullptr)
+        throw CppSQLite3Exception(CPPSQLITE_ERROR,
+            _T("A serialized SQLite connection is required for a transaction"), DONT_DELETE_MSG);
+    sqlite3_mutex_enter(m_mutex);
+    try
+    {
+        m_outermost = sqlite3_get_autocommit(db.mpDB) != 0;
+        db.execDML(m_outermost ? _T("BEGIN IMMEDIATE;") : _T("SAVEPOINT DittoWrite;"));
+        m_active = true;
+    }
+    catch (...)
+    {
+        sqlite3_mutex_leave(m_mutex);
+        throw;
+    }
+}
+
+CppSQLite3Transaction::~CppSQLite3Transaction()
+{
+    if (m_active)
+    {
+        try
+        {
+            if (m_outermost)
+                m_db.execDML(_T("ROLLBACK;"));
+            else
+            {
+                m_db.execDML(_T("ROLLBACK TO DittoWrite;"));
+                m_db.execDML(_T("RELEASE DittoWrite;"));
+            }
+        }
+        catch (...)
+        {
+            OutputDebugString(_T("Ditto: failed to roll back a database savepoint\n"));
+        }
+    }
+    sqlite3_mutex_leave(m_mutex);
+}
+
+void CppSQLite3Transaction::commit()
+{
+    m_db.execDML(m_outermost ? _T("COMMIT;") : _T("RELEASE DittoWrite;"));
+    m_active = false;
 }

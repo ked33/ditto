@@ -48,13 +48,11 @@ namespace SearchIndex
 {
 	bool EnsureCurrent(CppSQLite3DB &db)
 	{
-		g_searchIndexReady = false;
-		bool inTransaction = false;
 		try
 		{
 			// Failed upgrades leave both the previous cache and its version intact.
-			db.execDML(_T("BEGIN IMMEDIATE;"));
-			inTransaction = true;
+			CppSQLite3Transaction transaction(db);
+			g_searchIndexReady = false;
 			const bool hadIndex = db.tableExists(_T("MainFullTextIndex"));
 			const bool hadLiteralIndex = db.tableExists(_T("MainFullTextLiteralIndex"));
 			for (const auto &sql : SearchIndexSql::SchemaStatementsUtf8())
@@ -65,7 +63,6 @@ namespace SearchIndex
 			const int version = db.execScalar(_T("SELECT version FROM MainSearchMeta LIMIT 1"));
 			if (version > SearchIndexSql::kCurrentVersion)
 			{
-				db.execDML(_T("ROLLBACK;"));
 				Log(_T("SearchIndex - newer schema, leaving it unchanged"));
 				return false;
 			}
@@ -110,18 +107,13 @@ namespace SearchIndex
 			// insert/update/delete. Paging and counts no longer read text BLOBs.
 			db.execDML(ToCString(SearchIndexSql::WebLinkIndexUtf8()));
 			db.execDMLEx(_T("UPDATE MainSearchMeta SET version = %d;"), SearchIndexSql::kCurrentVersion);
-			db.execDML(_T("COMMIT;"));
-			inTransaction = false;
+			transaction.commit();
 			g_searchIndexReady = true;
 			return true;
 		}
 		CATCH_SQLITE_EXCEPTION
 
-		if (inTransaction)
-		{
-			try { db.execDML(_T("ROLLBACK;")); }
-			catch (CppSQLite3Exception&) {}
-		}
+		g_searchIndexReady = false;
 		return false;
 	}
 

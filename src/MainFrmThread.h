@@ -30,6 +30,8 @@ public:
 
 protected:
     virtual void OnEvent(int eventId, void *param);
+    virtual void OnTimeOut(void* param);
+    bool HasPendingSaves();
 
     void OnDeleteEntries();
     void OnRemoveTempFiles();
@@ -37,6 +39,7 @@ protected:
 	void OnSaveRemoteClips();
 	void OnReadDbFile();
 
+	bool m_maintenancePending;
 	CCriticalSection m_cs;
 	CClipList m_saveClips;
 	CClipList m_saveRemoteClips;

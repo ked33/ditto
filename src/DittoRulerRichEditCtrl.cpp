@@ -112,6 +112,8 @@ void CDittoRulerRichEditCtrl::d()
 	MessageBox(s);
 }
 
+static const int CANCELLED_CLIP_SAVE = -1;
+
 int CDittoRulerRichEditCtrl::SaveToDB(BOOL bUpdateDesc)
 {
 	int nRet = FALSE;
@@ -122,7 +124,7 @@ int CDittoRulerRichEditCtrl::SaveToDB(BOOL bUpdateDesc)
 		return DIDNT_NEED_TO_SAVE;
 	}
 
-	bool bSetModifyToFalse = true;
+	bool bSetModifyToFalse = false;
 	try
 	{
 		//only save the types if they have them set as save types, mainly rtf type
@@ -144,6 +146,8 @@ int CDittoRulerRichEditCtrl::SaveToDB(BOOL bUpdateDesc)
 			}
 		}
 
+		delete pTypes;
+
 		CClip Clip;
 		Clip.m_id = m_lID;
 		if(saveTypes & stRTF)
@@ -161,11 +165,10 @@ int CDittoRulerRichEditCtrl::SaveToDB(BOOL bUpdateDesc)
 			return FALSE;
 		}
 
-		theApp.m_db.execDML(_T("begin transaction;"));
-
+		// Each save owns its transaction. Never hold a database lock across DoModal.
 		if(m_lID >= 0)
 		{
-			Clip.SaveFromEditWnd(bUpdateDesc);
+			bSetModifyToFalse = Clip.SaveFromEditWnd(bUpdateDesc);
 		}
 		else
 		{
@@ -174,9 +177,10 @@ int CDittoRulerRichEditCtrl::SaveToDB(BOOL bUpdateDesc)
 			CCopyProperties Prop(-1, this, &Clip);
 			Prop.SetHandleKillFocus(true);
 			Prop.SetToTopMost(false);
-			if(Prop.DoModal() == IDOK)
+			if (Prop.DoModal() != IDOK)
+				return CANCELLED_CLIP_SAVE;
+			if (Clip.AddToDB())
 			{
-				Clip.AddToDB();
 				m_csDescription = Clip.m_Desc;
 				m_lID = Clip.m_id;
 				bUpdateDesc = TRUE;
@@ -184,12 +188,12 @@ int CDittoRulerRichEditCtrl::SaveToDB(BOOL bUpdateDesc)
 			}
 		}
 
-		nRet = SAVED_CLIP_TO_DB;
-
-		theApp.m_db.execDML(_T("commit transaction;"));
-
-		if(bUpdateDesc)
-			theApp.RefreshView();
+		if (bSetModifyToFalse)
+		{
+			nRet = SAVED_CLIP_TO_DB;
+			if (bUpdateDesc)
+				theApp.RefreshView();
+		}
 	}
 	CATCH_SQLITE_EXCEPTION
 
@@ -287,11 +291,15 @@ bool CDittoRulerRichEditCtrl::CloseEdit(bool bPrompt, BOOL bUpdateDesc)
 
 		if(nRet == IDYES)
 		{
-			if(SaveToDB(bUpdateDesc) == false)
+			const int saved = SaveToDB(bUpdateDesc);
+			if (saved == CANCELLED_CLIP_SAVE)
+				return false;
+			if (saved == FALSE)
 			{
 				CString cs;
 				cs.Format(_T("%s '%s'"), theApp.m_Language.GetString("ErrorSaving", "Error saving clip"), m_csDescription);
 				MessageBox(cs, _T("Ditto"), MB_OK);
+				return false;
 			}
 		}
 		else if(nRet == IDCANCEL)

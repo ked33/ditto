@@ -212,7 +212,8 @@ BOOL OpenDatabase(CString dbPath)
 		}
 
 
-		theApp.m_db.close();
+		if (!theApp.m_db.close())
+			return FALSE;
 		theApp.m_db.open(dbPath);
 
 		theApp.m_db.setBusyTimeout(CGetSetOptions::GetDbTimeout());
@@ -322,6 +323,35 @@ static void EnsureCopySourceColumns(CppSQLite3DB& db)
 		db.execDML(_T("RELEASE CopySourceMigration;"));
 		throw;
 	}
+}
+
+static void EnsureStickyOrderMigration(CppSQLite3DB& db)
+{
+	db.execDML(_T("CREATE TABLE IF NOT EXISTS DittoSchemaMigrations(name TEXT PRIMARY KEY NOT NULL);"));
+	if (db.execScalar(_T("SELECT EXISTS(SELECT 1 FROM DittoSchemaMigrations WHERE name = 'sticky-order-v1');")))
+		return;
+
+	CppSQLite3Transaction transaction(db);
+	// Current sorting indexes, or the historical index, prove the old data
+	// conversion already ran. In particular, preserve valid zero sort positions.
+	const bool alreadyConverted = db.execScalar(_T("SELECT EXISTS(SELECT 1 FROM sqlite_master ")
+		_T("WHERE type = 'index' AND name IN ('Main_NoGroup', 'Main_TopLevel', 'Main_InGroup2'));")) != 0;
+	if (!alreadyConverted)
+	{
+		db.execDML(_T("UPDATE Main SET stickyClipOrder = -(2147483647) WHERE stickyClipOrder IS NULL OR stickyClipOrder = 0;"));
+		db.execDML(_T("UPDATE Main SET stickyClipGroupOrder = -(2147483647) WHERE stickyClipGroupOrder IS NULL OR stickyClipGroupOrder = 0;"));
+	}
+	db.execDML(_T("INSERT INTO DittoSchemaMigrations(name) VALUES('sticky-order-v1');"));
+	transaction.commit();
+}
+
+static void EnsureLookupIndexes(CppSQLite3DB& db)
+{
+	// Keep the parent-first index for loading all formats of one clip. Format
+	// filters use BINARY equality and need the opposite column order as well.
+	db.execDML(_T("CREATE INDEX IF NOT EXISTS Data_ParentId_Format ON Data(lParentID COLLATE BINARY ASC, strClipBoardFormat COLLATE NOCASE ASC);"));
+	db.execDML(_T("CREATE INDEX IF NOT EXISTS Data_Format_ParentId ON Data(strClipBoardFormat COLLATE BINARY, lParentID);"));
+	db.execDML(_T("CREATE INDEX IF NOT EXISTS MainDeletes_ClipId ON MainDeletes(clipID);"));
 }
 
 BOOL ValidDB(CString csPath, BOOL bUpgrade)
@@ -471,32 +501,8 @@ BOOL ValidDB(CString csPath, BOOL bUpgrade)
 			e.errorCode();
 		}
 
-		try
-		{
-			CppSQLite3Query q = db.execQuery(_T("PRAGMA index_info(Main_NoGroup);"));
-			int count = 0;
-			while (q.eof() == false)
-			{
-				count++;
-				q.nextRow();
-			}
-
-			if (count == 0)
-			{
-				db.execDML(_T("Update Main set stickyClipOrder = -(2147483647) where stickyClipOrder IS NULL;"));
-				db.execDML(_T("Update Main set stickyClipGroupOrder = -(2147483647) where stickyClipGroupOrder IS NULL;"));
-				db.execDML(_T("Update Main set stickyClipOrder = -(2147483647) where stickyClipOrder = 0;"));
-				db.execDML(_T("Update Main set stickyClipGroupOrder = -(2147483647) where stickyClipGroupOrder = 0;"));
-
-				db.execDML(_T("CREATE INDEX Main_NoGroup ON Main(bIsGroup ASC, stickyClipOrder DESC, clipOrder DESC);"));
-				db.execDML(_T("CREATE INDEX Main_InGroup ON Main(lParentId ASC, bIsGroup ASC, stickyClipGroupOrder DESC, clipGroupOrder DESC);"));
-				db.execDML(_T("CREATE INDEX Data_ParentId_Format ON Data(lParentID COLLATE BINARY ASC, strClipBoardFormat COLLATE NOCASE ASC);"));
-			}
-		}
-		catch (CppSQLite3Exception& e)
-		{
-			e.errorCode();
-		}
+		EnsureStickyOrderMigration(db);
+		EnsureLookupIndexes(db);
 
 		try
 		{
@@ -808,6 +814,9 @@ BOOL CreateDB(CString csFile)
 		db.execDML(_T("CREATE INDEX IF NOT EXISTS Main_MoveToGroup on Main(MoveToGroupShortCut DESC, GlobalMoveToGroupShortCut DESC)"));
 		db.execDML(_T("CREATE INDEX IF NOT EXISTS Main_CRC on Main(CRC ASC)"));
 
+		EnsureStickyOrderMigration(db);
+		EnsureLookupIndexes(db);
+
 		db.close();
 	}
 	CATCH_SQLITE_EXCEPTION_AND_RETURN(FALSE)
@@ -884,122 +893,124 @@ BOOL RepairDatabase()
 	return TRUE;
 }
 
-BOOL RemoveOldEntries(bool checkIdleTime)
+BOOL RemoveOldEntries(bool checkIdleTime, const std::function<bool()>& shouldYield, bool* moreWork)
 {
-	Log(StrF(_T("Beginning of RemoveOldEntries MaxEntries: %d - Keep days: %d"), CGetSetOptions::GetMaxEntries(), CGetSetOptions::GetExpiredEntries()));
+	if (moreWork != nullptr)
+		*moreWork = false;
+	// Background maintenance gets short batches and yields to incoming copies.
+	// Manual cleanup retains its existing complete Main-table cleanup behavior.
+	const DWORD started = GetTickCount();
+	auto interrupted = [&]() { return shouldYield && shouldYield(); };
+	auto yieldBeforeBatch = [&]()
+	{
+		if (checkIdleTime && IdleSeconds() <= CGetSetOptions::GetIdleSecondsBeforeDelete())
+			return true;
+		if (interrupted() || (checkIdleTime && GetTickCount() - started >= 100))
+		{
+			if (moreWork != nullptr)
+				*moreWork = true;
+			return true;
+		}
+		return false;
+	};
+	if (yieldBeforeBatch())
+		return TRUE;
 
 	try
 	{
 		CppSQLite3DB db;
-		CString csDbPath = CGetSetOptions::GetDBPath();
-		db.open(csDbPath);
+		db.open(CGetSetOptions::GetDBPath());
+		if (checkIdleTime)
+			db.setBusyTimeout(100);
 
-		if (CGetSetOptions::GetCheckForMaxEntries())
+		auto deleteMainBatches = [&](const CString& sql)
 		{
-			long lMax = CGetSetOptions::GetMaxEntries();
-			if (lMax >= 0)
+			while (!yieldBeforeBatch())
 			{
-				CClipIDs IDs;
-				int clipId;
-
-				CppSQLite3Query q = db.execQueryEx(_T("SELECT lID, lShortCut, lParentID, lDontAutoDelete, stickyClipOrder, stickyClipGroupOrder FROM Main WHERE bIsGroup = 0 ORDER BY clipOrder DESC LIMIT -1 OFFSET %d"), lMax);
-				while (q.eof() == false)
+				CClipIDs ids;
 				{
-					int shortcut = q.getIntField(_T("lShortCut"));
-					int dontDelete = q.getIntField(_T("lDontAutoDelete"));
-					int parentId = q.getIntField(_T("lParentID"));
-					double stickyClipOrder = q.getFloatField(_T("stickyClipOrder"));
-					double stickyClipGroupOrder = q.getFloatField(_T("stickyClipGroupOrder"));
-
-					//Only delete entries that have no shortcut and don't have the flag set and aren't in groups and 
-					if (shortcut == 0 &&
-						dontDelete == 0 &&
-						parentId <= 0 &&
-						stickyClipOrder == -(2147483647) &&
-						stickyClipGroupOrder == -(2147483647))
+					CppSQLite3Query q = db.execQuery(sql);
+					while (!q.eof())
 					{
-						clipId = q.getIntField(_T("lID"));
-						IDs.Add(clipId);
-						Log(StrF(_T("From MaxEntries - Deleting Id: %d"), clipId));
+						ids.Add(q.getIntField(_T("lID")));
+						q.nextRow();
 					}
-
-					q.nextRow();
 				}
-
-				if (IDs.GetCount() > 0)
+				if (ids.GetCount() == 0)
+					return true;
+				if (interrupted())
 				{
-					IDs.DeleteIDs(false, db);
+					if (moreWork != nullptr)
+						*moreWork = true;
+					return false;
 				}
+				// Finish one bounded batch even if its SELECT used the time budget,
+				// so a large protected history cannot prevent all forward progress.
+				if (!ids.DeleteIDs(false, db))
+					return false;
 			}
-		}
+			return false;
+		};
 
-		if (CGetSetOptions::GetCheckForExpiredEntries())
+		if (CGetSetOptions::GetCheckForMaxEntries() && CGetSetOptions::GetMaxEntries() >= 0)
 		{
-			long lExpire = CGetSetOptions::GetExpiredEntries();
-
-			if (lExpire)
-			{
-				CTime now = CTime::GetCurrentTime();
-				now -= CTimeSpan(lExpire, 0, 0, 0);
-
-				CClipIDs IDs;
-
-				CppSQLite3Query q = db.execQueryEx(_T("SELECT lID FROM Main ")
-					_T("WHERE lastPasteDate < %d AND ")
-					_T("bIsGroup = 0 AND lShortCut = 0 AND lParentID <= 0 AND lDontAutoDelete = 0 AND stickyClipOrder = -(2147483647) AND stickyClipGroupOrder = -(2147483647)"), (int)now.GetTime());
-
-				while (q.eof() == false)
-				{
-					IDs.Add(q.getIntField(_T("lID")));
-
-					Log(StrF(_T("From Clips Expire - Deleting Id: %d"), q.getIntField(_T("lID"))));
-
-					q.nextRow();
-				}
-
-				if (IDs.GetCount() > 0)
-				{
-					IDs.DeleteIDs(false, db);
-				}
-			}
+			// Apply OFFSET before the protection filter: retained groups/shortcuts
+			// still count toward the configured history size, as before.
+			CString sql = StrF(_T("SELECT lID FROM (SELECT lID, lShortCut, lParentID, lDontAutoDelete, stickyClipOrder, stickyClipGroupOrder ")
+				_T("FROM Main WHERE bIsGroup = 0 ORDER BY clipOrder DESC LIMIT -1 OFFSET %d) ")
+				_T("WHERE COALESCE(lShortCut, 0) = 0 AND COALESCE(lDontAutoDelete, 0) = 0 AND COALESCE(lParentID, 0) <= 0 ")
+				_T("AND stickyClipOrder = -(2147483647) AND stickyClipGroupOrder = -(2147483647) LIMIT 25;"),
+				CGetSetOptions::GetMaxEntries());
+			if (!deleteMainBatches(sql))
+				return TRUE;
 		}
 
-		int toDeleteCount = db.execScalar(_T("SELECT COUNT(clipID) FROM MainDeletes"));
-
-		Log(StrF(_T("Before Deleting emptied out data, count: %d, Idle Seconds: %f"), toDeleteCount, IdleSeconds()));
-
-		//Only delete 1 at a time, was finding that it was taking a long time to delete clips, locking the db and causing other queries
-		//to lock up
-		CppSQLite3Query q = db.execQueryEx(_T("SELECT * FROM MainDeletes LIMIT %d"), CGetSetOptions::GetMainDeletesDeleteCount());
-		int deleteCount = 0;
-
-		while (q.eof() == false)
+		if (CGetSetOptions::GetCheckForExpiredEntries() && CGetSetOptions::GetExpiredEntries())
 		{
-			double idleSeconds = IdleSeconds();
-			if (checkIdleTime == false || idleSeconds > CGetSetOptions::GetIdleSecondsBeforeDelete())
-			{
-				//delete any data items sitting out there that the main table data was deleted
-				//this was done to speed up deleted from the main table
-				deleteCount = db.execDMLEx(_T("DELETE FROM MainDeletes WHERE clipID=%d"), q.getIntField(_T("clipID")));
-			}
-			else
-			{
-				Log(StrF(_T("Computer has not been idle long enough to delete clips, Min Idle: %d, current Idle: %d"),
-					CGetSetOptions::GetIdleSecondsBeforeDelete(), idleSeconds));
-
-				break;
-			}
-			q.nextRow();
+			CTime cutoff = CTime::GetCurrentTime() - CTimeSpan(CGetSetOptions::GetExpiredEntries(), 0, 0, 0);
+			CString sql = StrF(_T("SELECT lID FROM Main WHERE lastPasteDate < %d AND ")
+				_T("bIsGroup = 0 AND lShortCut = 0 AND lParentID <= 0 AND lDontAutoDelete = 0 ")
+				_T("AND stickyClipOrder = -(2147483647) AND stickyClipGroupOrder = -(2147483647) LIMIT 25;"),
+				(int)cutoff.GetTime());
+			if (!deleteMainBatches(sql))
+				return TRUE;
 		}
 
-		toDeleteCount = db.execScalar(_T("SELECT COUNT(clipID) FROM MainDeletes"));
-
-		Log(StrF(_T("After Deleting emptied out data rows, Count: %d, toDelete: %d"), deleteCount, toDeleteCount));
+		if (yieldBeforeBatch())
+			return TRUE;
+		int deleteLimit = CGetSetOptions::GetMainDeletesDeleteCount();
+		if (checkIdleTime && (deleteLimit < 0 || deleteLimit > 100))
+			deleteLimit = 100;
+		std::vector<int> pendingDeletes;
+		{
+			CppSQLite3Query q = db.execQueryEx(_T("SELECT clipID FROM MainDeletes LIMIT %d;"), deleteLimit);
+			while (!q.eof())
+			{
+				pendingDeletes.push_back(q.getIntField(_T("clipID")));
+				q.nextRow();
+			}
+		}
+		for (int clipId : pendingDeletes)
+		{
+			if (yieldBeforeBatch())
+				return TRUE;
+			db.execDMLEx(_T("DELETE FROM MainDeletes WHERE clipID=%d"), clipId);
+		}
+		if (checkIdleTime && moreWork != nullptr && !pendingDeletes.empty())
+			*moreWork = db.execScalar(_T("SELECT EXISTS(SELECT 1 FROM MainDeletes);")) != 0;
 	}
-	CATCH_SQLITE_EXCEPTION
-
-		Log(_T("End of RemoveOldEntries"));
-
+	catch (CppSQLite3Exception& e)
+	{
+		// A busy writer should take priority; retry maintenance after saving.
+		if (checkIdleTime && (e.errorCode() == SQLITE_BUSY || e.errorCode() == SQLITE_LOCKED))
+		{
+			if (moreWork != nullptr)
+				*moreWork = true;
+			return TRUE;
+		}
+		Log(StrF(_T("RemoveOldEntries failed: %s"), e.errorMessage()));
+		return FALSE;
+	}
 	return TRUE;
 }
 

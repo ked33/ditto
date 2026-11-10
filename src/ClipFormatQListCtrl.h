@@ -10,8 +10,9 @@ public:
 
 	int m_clipRow;
 	bool m_convertedToSmallImage;
-	INT64 m_counter;
+	ULONGLONG m_counter;
+    UINT_PTR m_generation = 0;
 
-	HGLOBAL GetDibFittingToHeight(CDC *pDc, int height);
+	HGLOBAL GetDibFittingToHeight(CDC *pDc, int height, int maxWidth = 0);
 };
 

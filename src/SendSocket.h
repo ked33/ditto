@@ -11,6 +11,7 @@
 
 #include "..\EncryptDecrypt\Encryption.h"
 #include "ServerDefines.h"
+#include <atomic>
 #include "FileTransferProgressDlg.h"
 
 
@@ -21,6 +22,7 @@ public:
 	virtual ~CSendSocket();
 
 	void SetSocket(SOCKET sock)		{ m_Connection = sock;	}
+	void SetCancellationFlag(const std::atomic<bool>* flag) { m_cancelled = flag; }
 	void SetProgressBar(CFileTransferProgressDlg *pDlg) { m_pProgress = pDlg; }
 
 	CEncryption *m_pEncryptor;
@@ -30,6 +32,7 @@ public:
 
 protected:
 	SOCKET m_Connection;
+	const std::atomic<bool>* m_cancelled = nullptr;
 
 	CFileTransferProgressDlg *m_pProgress;
 };

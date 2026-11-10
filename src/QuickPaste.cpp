@@ -22,7 +22,7 @@ namespace
 
 		if (fillList == FALSE)
 		{
-			if (pasteWnd->m_listItems.size() == 0)
+			if (pasteWnd->CachedRowCount() == 0)
 			{
 				fillList = TRUE;
 			}

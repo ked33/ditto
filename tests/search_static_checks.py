@@ -12,6 +12,17 @@ FILES = (
     "src/SearchIndex.cpp", "src/SearchIndexSql.cpp", "src/SearchIndexSql.h",
     "src/FormatSQL.cpp", "src/sqlite/CppSQLite3.cpp", "src/sqlite/CppSQLite3.h",
     "ICU_Loader/CharacterTokenizer.h", "ICU_Loader/icu.cpp",
+    "src/AsyncClipPreview.cpp", "src/AsyncClipPreview.h", "src/SearchResultCache.h",
+    "src/QListCtrl.cpp", "src/QListCtrl.h", "src/ToolTipEx.cpp", "src/ToolTipEx.h",
+    "src/DatabaseUtilities.cpp", "src/DatabaseUtilities.h", "src/Clip.cpp", "src/Clip.h",
+    "src/ClipIds.cpp", "src/MainFrmThread.cpp", "src/MainFrmThread.h",
+    "src/BitmapHelper.cpp", "src/BitmapHelper.h", "src/ClipFormatQListCtrl.cpp", "src/ClipFormatQListCtrl.h",
+    "src/EventThread.cpp", "src/EventThread.h", "src/AutoSendToClientThread.cpp",
+    "src/DittoRulerRichEditCtrl.cpp", "src/QuickPaste.cpp",
+    "src/ClipEditThread.cpp", "src/Clip_ImportExport.cpp",
+    "src/CancelableSocket.h", "src/Client.cpp", "src/Client.h",
+    "src/SendSocket.cpp", "src/SendSocket.h",
+    "tests/search_paging_smoke.cpp", "tests/cancelable_socket_smoke.cpp",
 )
 
 
@@ -30,6 +41,7 @@ def code_characters(source):
             index += 1
             while index < len(source):
                 char = source[index]
+                assert ord(char) not in (10, 13), "Unescaped newline in string/character literal"
                 index += 1
                 if ord(char) == 92:
                     index += 1
@@ -56,7 +68,7 @@ def main():
     namespace = {"m": "http://schemas.microsoft.com/developer/msbuild/2003"}
     project = ET.parse(ROOT / "CP_Main.vcxproj")
     compiled = {element.attrib.get("Include", "") for element in project.findall(".//m:ClCompile", namespace)}
-    for stem in ("SearchIndex", "SearchIndexSql", "FormatSQL", "QPasteWndThread", "QPasteWnd"):
+    for stem in ("SearchIndex", "SearchIndexSql", "FormatSQL", "QPasteWndThread", "QPasteWnd", "AsyncClipPreview"):
         assert any(path.endswith(stem + ".cpp") for path in compiled), stem
     print("MSBuild source registrations: passed")
 

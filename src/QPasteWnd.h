@@ -21,6 +21,9 @@
 #include "Popup.h"
 #include "CustomFriendsHelper.h"
 #include "ModernScrollBar.h"
+#include "SearchResultCache.h"
+
+#define NM_EXTRA_DATA_READY (WM_APP + 0x330)
 
 class CMainTable
 {
@@ -148,13 +151,29 @@ public:
 	CGroupStatic m_noSearchResultsStatic;
 
     long m_lRecordCount;
-    void CancelPendingSearch();
+    void CancelPendingSearch(bool preservePersistentPreview = false);
     bool m_bHandleSearchTextChange;
     bool m_bModifersMoveActive;
 
     CQPasteWndThread m_thread;
 	CQPasteWndThread m_extraDataThread;
-	std::vector<CMainTable> m_listItems;
+    CQPasteWndThread m_countThread;
+    SearchResultCache<CMainTable> m_listItems;
+    std::vector<int> m_resultIds;
+    CString m_listSql;
+    CString m_listDatabasePath;
+    bool m_listCountKnown = false;
+    int m_visibleFirstRow = 0;
+    int m_visibleLastRow = 0;
+    void RefreshCachedOrder();
+    bool LoadResultIds(std::vector<int>& ids);
+    bool ResolveSelectionIds(ARRAY& ids);
+    void UpdateVisibleRange();
+    int CachedRowCount()
+    {
+        ATL::CCritSecLock lock(m_CritSection.m_sect);
+        return static_cast<int>(m_listItems.size());
+    }
 
 	std::list<CPoint> m_loadItems;
     std::list<CClipFormatQListCtrl> m_ExtraDataLoadItems;
@@ -170,7 +189,7 @@ public:
 	CModernScrollBar m_modernScrollBar;       // Vertical scrollbar
 	CModernScrollBar m_modernScrollBarHorz;   // Horizontal scrollbar
 	int m_leftSelectedCompareId;
-	INT64 m_extraDataCounter;
+	ULONGLONG m_extraDataCounter;
 	CPopup m_popupMsg;
 	CCustomFriendsHelper m_customFriendsHelper;
 	bool m_noSearchResults;
@@ -478,6 +497,8 @@ protected:
 	afx_msg void OnCustomSendToFriend(UINT idIn);
 	afx_msg void OnChaiScriptPaste(UINT idIn);
     afx_msg LRESULT OnSelectAll(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnResolveSelectedIds(WPARAM wParam, LPARAM lParam);
+    afx_msg LRESULT OnExtraDataReady(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnShowHideScrollBar(WPARAM wParam, LPARAM lParam);
 	afx_msg LRESULT OnUpdateScrollBar(WPARAM wParam, LPARAM lParam);
 	afx_msg void OnMenuSearchDescription();
