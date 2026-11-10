@@ -21,7 +21,7 @@ FILES = (
     "src/DittoRulerRichEditCtrl.cpp", "src/QuickPaste.cpp",
     "src/ClipEditThread.cpp", "src/Clip_ImportExport.cpp",
     "src/CancelableSocket.h", "src/Client.cpp", "src/Client.h",
-    "src/SendSocket.cpp", "src/SendSocket.h",
+    "src/SendSocket.cpp", "src/SendSocket.h", "src/Server.cpp",
     "tests/search_paging_smoke.cpp", "tests/cancelable_socket_smoke.cpp",
 )
 

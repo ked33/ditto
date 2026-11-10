@@ -2,6 +2,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <functional>
 #include <thread>
 #include <vector>
 
@@ -36,7 +37,10 @@ int main()
     Require(listener != INVALID_SOCKET, "Listener socket");
     endpoint.sin_family = AF_INET;
     endpoint.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    Require(bind(listener, reinterpret_cast<sockaddr*>(&endpoint), static_cast<int>(sizeof(endpoint))) == 0, "Bind loopback");
+    // Legacy application headers import std names. Keep std::bind visible to
+    // exercise WinSock name resolution in the same environment as Server.cpp.
+    using namespace std;
+    Require(::bind(listener, reinterpret_cast<const sockaddr*>(&endpoint), static_cast<int>(sizeof(endpoint))) == 0, "Bind loopback");
     Require(listen(listener, 1) == 0, "Listen loopback");
     int endpointLength = static_cast<int>(sizeof(endpoint));
     Require(getsockname(listener, reinterpret_cast<sockaddr*>(&endpoint), &endpointLength) == 0, "Listener address");

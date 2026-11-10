@@ -54,7 +54,7 @@ UINT  MTServerThread(LPVOID pParam)
 		LogSendRecieveInfo("ERROR - theApp.m_sSocket = socket(AF_INET, SOCK_STREAM, 0);");
 		return 0;
 	}
-	if(bind(theApp.m_sSocket,(sockaddr*)&local,sizeof(local))!=0)
+	if (::bind(theApp.m_sSocket, reinterpret_cast<const sockaddr*>(&local), static_cast<int>(sizeof(local))) != 0)
 	{
 		LogSendRecieveInfo("ERROR - if(bind(theApp.m_sSocket,(sockaddr*)&local,sizeof(local))!=0)");
 		return 0;
